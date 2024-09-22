@@ -275,6 +275,24 @@
     <script src="js/jquery.slicknav.js"></script>
     <script src="js/owl.carousel.min.js"></script>
     <script src="js/main.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const category = urlParams.get('category');
+    
+            // If a category is specified, simulate a click on the corresponding filter
+            if (category) {
+                const filterControls = document.querySelectorAll('.filter-controls ul li');
+                filterControls.forEach(control => {
+                    if (control.textContent.toLowerCase() === category) {
+                        control.click();
+                    }
+                });
+            }
+        });
+    </script>
+    
 </body>
 
 </html>
