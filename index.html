@@ -309,6 +309,66 @@
         </div>
     </section>
     <!-- Portfolio Section End -->
+    
+    <section class="testimonials">
+        <h2>Testimonials</h2>
+        <div class="testimonial-slider">
+          <a href="https://maps.app.goo.gl/FG4xUiUmUx3eYZta9" target="_blank" class="testimonial active">
+            <div class="header">
+              <div class="info">
+                <div class="name">RIYA KANT</div>
+                <div class="rating">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+              </div>
+            </div>
+            <p>"I visited the studio for my visa photo and portrait photo and had a great experience. The service is worth it. The owners (couple) are very friendly and entertaining so no stress for getting natural candid photos!! The picture quality is great. Must visit studio."</p>
+          </a>
+      
+          <a href="https://maps.app.goo.gl/dSGtPQS6rZZPC6Yg6" target="_blank" class="testimonial">
+            <div class="header">
+              <div class="info">
+                <div class="name">Arghya Sarkar</div>
+                <div class="rating">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+              </div>
+            </div>
+            <p>"Max Digital Studio stands out as the premier choice for photography in Delhi across all occasions. With cutting-edge equipment and expertise, they capture moments from the perfect angles, ensuring unforgettable memories. Their commitment transcends mere transactions, prioritizing enduring relationships. Highly recommended for those seeking timeless photography experiences."</p>
+          </a>
+      
+          <a href="https://maps.app.goo.gl/2aXfyUxiZnJENcF26" target="_blank" class="testimonial">
+            <div class="header">
+              <div class="info">
+                <div class="name">Navjeet Singh</div>
+                <div class="rating">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+              </div>
+            </div>
+            <p>"Max Digital makes amazing photos and video, every photo and video of mine is amazing. And I would give them 10 out of 10"</p>
+          </a>
+        </div>
+      
+        <div class="controls">
+          <span class="prev">&larr;</span>
+          <span class="next">&rarr;</span>
+        </div>
+      </section>
+      
+      
 
     <!-- Footer Section Begin -->
     <footer class="footer-section">
@@ -400,6 +460,31 @@
     <script src="js/jquery.slicknav.js"></script>
     <script src="js/owl.carousel.min.js"></script>
     <script src="js/main.js"></script>
+    <!-- Add this just before the closing </body> tag -->
+<script>
+   let currentSlide = 0;
+const testimonials = document.querySelectorAll('.testimonial');
+const totalSlides = testimonials.length;
+
+document.querySelector('.next').addEventListener('click', () => {
+  testimonials[currentSlide].classList.remove('active');
+  currentSlide = (currentSlide + 1) % totalSlides;
+  testimonials[currentSlide].classList.add('active');
+});
+
+document.querySelector('.prev').addEventListener('click', () => {
+  testimonials[currentSlide].classList.remove('active');
+  currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+  testimonials[currentSlide].classList.add('active');
+});
+
+setInterval(() => {
+  document.querySelector('.next').click();
+}, 5000); // Slide every 5 seconds
+
+
+</script>
+
 </body>
 
 </html>
