@@ -2709,5 +2709,17 @@ ol {
     line-height: normal;
   }
 }
+.about-section img.about-pic {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  margin: 0;
+}
+@media (max-width: 768px) {
+  .about-section img.about-pic {
+    height: 300px;
+  }
+}
 
 /*# sourceMappingURL=style.css.map */
