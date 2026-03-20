@@ -2731,6 +2731,13 @@ ol {
   .about-section img.about-pic {
     height: 300px;
   }
+  .breadcrumb-option.spad {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+  .breadcrumb-option {
+    padding-top: 0;
+  }
 }
 
 /*# sourceMappingURL=style.css.map */
