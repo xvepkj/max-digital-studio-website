@@ -2727,9 +2727,12 @@ ol {
   object-position: top center;
   margin: 0;
 }
+
 @media (max-width: 768px) {
   .about-section img.about-pic {
-    height: 300px;
+    height: auto;
+    min-height: unset;
+    object-fit: unset;
   }
   .breadcrumb-option.spad {
     padding-top: 20px;
