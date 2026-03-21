@@ -66,6 +66,19 @@ function dirToCategory(dir) {
 }
 
 // ---------------------------------------------------------------------------
+// Cloudinary helpers
+// ---------------------------------------------------------------------------
+
+function getCloudinaryConfig() {
+  return {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // GitHub file helpers
 // ---------------------------------------------------------------------------
 
@@ -751,6 +764,59 @@ async function handleUpdateContent(body) {
   return response(200, { success: true });
 }
 
+// 7. cloudinary-config ------------------------------------------------------
+async function handleCloudinaryConfig() {
+  const { cloudName, uploadPreset } = getCloudinaryConfig();
+  if (!cloudName || !uploadPreset) {
+    return response(500, { error: "Cloudinary not configured. Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET environment variables." });
+  }
+  return response(200, { cloudName, uploadPreset });
+}
+
+// 8. list-cloud-images ------------------------------------------------------
+async function handleListCloudImages(queryParams) {
+  const category = queryParams.category;
+  if (!category) {
+    return response(400, { error: "Missing required query parameter: category" });
+  }
+
+  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+  if (!cloudName || !apiKey || !apiSecret) {
+    return response(200, []); // Return empty if Cloudinary not configured
+  }
+
+  const catDir = categoryToDir(category);
+  const folder = `max-digital-studio/${catDir}`;
+  const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
+
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/resources/image?prefix=${encodeURIComponent(folder)}/&type=upload&max_results=500`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Basic ${auth}` },
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    console.error("Cloudinary API error:", errBody);
+    return response(200, []); // Graceful fallback
+  }
+
+  const data = await res.json();
+
+  const images = (data.resources || []).map((r) => {
+    const name = r.public_id.split("/").pop();
+    return {
+      name,
+      publicId: r.public_id,
+      thumbUrl: `https://res.cloudinary.com/${cloudName}/image/upload/w_600,q_65,f_webp/${r.public_id}`,
+      fullUrl: `https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto/${r.public_id}`,
+      source: "cloudinary",
+    };
+  });
+
+  return response(200, images);
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -783,6 +849,10 @@ exports.handler = async (event, context) => {
           return await handleGetGallery();
         case "get-content":
           return await handleGetContent(params);
+        case "cloudinary-config":
+          return await handleCloudinaryConfig();
+        case "list-cloud-images":
+          return await handleListCloudImages(params);
         default:
           return response(400, { error: `Unknown GET action: ${action}` });
       }

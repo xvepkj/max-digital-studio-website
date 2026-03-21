@@ -682,6 +682,7 @@
     let galleryConfig = {};      // { imagePath: true/false }
     let selectedPortfolio = [];  // array of image paths
     let uploadFiles = [];
+    let cloudinaryConfig = null; // { cloudName, uploadPreset }
     let homeContent = null;
     let aboutContent = null;
     let eventsContent = null;
@@ -708,6 +709,10 @@
     function showApp() {
       document.getElementById('authScreen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
+      // Fetch Cloudinary config for uploads
+      apiGet({ action: 'cloudinary-config' })
+        .then(cfg => { cloudinaryConfig = cfg; })
+        .catch(() => { console.warn('Cloudinary not configured — uploads disabled'); });
       loadGalleryImages();
     }
 
@@ -842,10 +847,14 @@
       showSpinner(grid);
 
       try {
-        const [images, gallery] = await Promise.all([
+        const [localImages, cloudImages, gallery] = await Promise.all([
           apiGet({ action: 'list-images', category: currentCategory }),
+          apiGet({ action: 'list-cloud-images', category: currentCategory }).catch(() => []),
           apiGet({ action: 'get-gallery' }).catch(() => ({ items: [] }))
         ]);
+
+        // Merge local and cloud images
+        const images = [...localImages, ...cloudImages];
 
         // Build gallery lookup — store full gallery for merging on save
         const galleryItemsArr = Array.isArray(gallery) ? gallery : (gallery.items || []);
@@ -1069,34 +1078,46 @@
     }
 
     document.getElementById('btnConfirmUpload').addEventListener('click', async () => {
+      if (!cloudinaryConfig) {
+        showToast('Cloudinary not configured. Add environment variables in Netlify.', 'error');
+        return;
+      }
+
       const btn = document.getElementById('btnConfirmUpload');
       setBtnLoading(btn, true);
 
+      const catDirMap = { wedding: 'wedding', sagan: 'sagan', 'pre_wedding': 'pre_wedding', 'pre-wedding': 'pre_wedding' };
+      const catDir = catDirMap[currentCategory] || currentCategory;
+      const folder = `max-digital-studio/${catDir}`;
+
+      let uploaded = 0;
       try {
         for (const file of uploadFiles) {
-          const reader = new FileReader();
-          const base64 = await new Promise((resolve, reject) => {
-            reader.onload = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+          formData.append('folder', folder);
 
-          await apiPost({
-            action: 'upload-image',
-            category: currentCategory,
-            filename: file.name,
-            imageData: base64,
-            contentType: file.type
-          });
+          const res = await fetch(
+            `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`,
+            { method: 'POST', body: formData }
+          );
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `Upload failed (${res.status})`);
+          }
+
+          uploaded++;
         }
 
-        showToast(`${uploadFiles.length} image(s) uploaded successfully`);
+        showToast(`${uploaded} image(s) uploaded to Cloudinary`);
         document.getElementById('uploadModal').classList.remove('visible');
         uploadFiles = [];
         loadGalleryImages();
 
       } catch (err) {
-        showToast('Upload failed: ' + err.message, 'error');
+        showToast(`Upload failed (${uploaded}/${uploadFiles.length}): ${err.message}`, 'error');
       } finally {
         setBtnLoading(btn, false);
       }
@@ -1209,7 +1230,7 @@
         const allImages = [];
 
         const results = await Promise.all(
-          categories.map(cat =>
+          categories.flatMap(cat => [
             apiGet({ action: 'list-images', category: cat })
               .then(imgs => imgs.map(img => ({
                 ...img,
@@ -1217,8 +1238,16 @@
                 thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
                 fullPath: img.fullUrl || `img/${cat}/${img.name}`
               })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
               .catch(() => [])
-          )
+          ])
         );
 
         results.forEach(imgs => allImages.push(...imgs));
@@ -1298,7 +1327,7 @@
         const categories = ['wedding', 'sagan', 'pre_wedding'];
         const allImages = [];
         const results = await Promise.all(
-          categories.map(cat =>
+          categories.flatMap(cat => [
             apiGet({ action: 'list-images', category: cat })
               .then(imgs => imgs.map(img => ({
                 ...img,
@@ -1306,8 +1335,16 @@
                 thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
                 fullPath: img.path || `img/thumbs/${cat}/${img.name}`
               })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
               .catch(() => [])
-          )
+          ])
         );
         results.forEach(imgs => allImages.push(...imgs));
 
@@ -1344,7 +1381,7 @@
         const allImages = [];
 
         const results = await Promise.all(
-          categories.map(cat =>
+          categories.flatMap(cat => [
             apiGet({ action: 'list-images', category: cat })
               .then(imgs => imgs.map(img => ({
                 ...img,
@@ -1352,8 +1389,16 @@
                 thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
                 fullPath: img.path || `img/thumbs/${cat}/${img.name}`
               })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
               .catch(() => [])
-          )
+          ])
         );
 
         results.forEach(imgs => allImages.push(...imgs));
