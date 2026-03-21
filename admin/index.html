@@ -992,8 +992,12 @@
       try {
         // Load image into canvas and rotate
         const image = new Image();
-        // Add cache-busting to avoid using a cached version that might not have CORS headers
-        image.src = imgEl.src.split('?')[0] + '?rot=' + Date.now();
+        // If src is already a data URL (from a previous rotation), use it directly
+        if (imgEl.src.startsWith('data:')) {
+          image.src = imgEl.src;
+        } else {
+          image.src = imgEl.src.split('?')[0] + '?rot=' + Date.now();
+        }
 
         await new Promise((resolve, reject) => {
           image.onload = resolve;
