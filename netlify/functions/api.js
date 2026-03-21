@@ -448,6 +448,14 @@ async function handleGetContent(queryParams) {
     }
     parsed.portfolioImages = portfolioImages;
   } else if (page === "about") {
+    // Parse about page main image
+    const aboutImgMatch = htmlContent.match(
+      /<img\s+src="([^"]+)"[^>]*class="about-pic[^"]*"/
+    );
+    if (aboutImgMatch) {
+      parsed.aboutImage = aboutImgMatch[1].trim();
+    }
+
     // Parse section title and description
     const titleMatch = htmlContent.match(
       /<div\s+class="section-title">\s*<h2>([\s\S]*?)<\/h2>\s*<p>([\s\S]*?)<\/p>/
@@ -514,6 +522,20 @@ async function handleGetContent(queryParams) {
       /<div\s+class="ct-text">\s*<h5>Email<\/h5>\s*<p>([\s\S]*?)<\/p>/
     );
     if (emailMatch) parsed.email = emailMatch[1].trim();
+  } else if (page === "services") {
+    // Parse service items (image, title, description)
+    const svcItems = [];
+    const svcRegex =
+      /<div\s+class="services-item">\s*<img\s+src="([^"]+)"[^>]*>\s*<h3>([\s\S]*?)<\/h3>\s*<p>([\s\S]*?)<\/p>/g;
+    let svcMatch;
+    while ((svcMatch = svcRegex.exec(htmlContent)) !== null) {
+      svcItems.push({
+        image: svcMatch[1].trim(),
+        title: svcMatch[2].trim(),
+        description: svcMatch[3].trim(),
+      });
+    }
+    parsed.services = svcItems;
   }
 
   return response(200, parsed);
@@ -654,6 +676,14 @@ async function handleUpdateContent(body) {
       }
     }
   } else if (page === "about") {
+    // Update about page main image
+    if (updates.aboutImage !== undefined) {
+      html = html.replace(
+        /(<img\s+src=")([^"]+)("[^>]*class="about-pic)/,
+        (match, pre, _oldSrc, post) => pre + updates.aboutImage + post
+      );
+    }
+
     // Update section title and description
     if (updates.title !== undefined || updates.description !== undefined) {
       html = html.replace(
@@ -692,16 +722,22 @@ async function handleUpdateContent(body) {
       );
     }
   } else if (page === "events") {
-    // Update event card titles (<h3> inside .services-item)
+    // Update event cards (title and image)
     if (updates.eventCards && Array.isArray(updates.eventCards)) {
       let cardIndex = 0;
       html = html.replace(
-        /(<div\s+class="services-item">[\s\S]*?<h3>)([\s\S]*?)(<\/h3>)/g,
-        (match, pre, _oldTitle, post) => {
+        /(<div\s+class="services-item">\s*<a[^>]*>\s*<img\s+src=")([^"]+)("[^>]*>\s*<h3>)([\s\S]*?)(<\/h3>)/g,
+        (match, pre_img, _oldImg, post_img, _oldTitle, post_h3) => {
           if (cardIndex < updates.eventCards.length) {
             const card = updates.eventCards[cardIndex];
             cardIndex++;
-            return pre + (card.title || _oldTitle) + post;
+            return (
+              pre_img +
+              (card.image || _oldImg) +
+              post_img +
+              (card.title || _oldTitle) +
+              post_h3
+            );
           }
           return match;
         }
@@ -747,6 +783,30 @@ async function handleUpdateContent(body) {
       html = html.replace(
         /(<div\s+class="ct-text">\s*<h5>Email<\/h5>\s*<p>)([\s\S]*?)(<\/p>)/,
         (match, pre, _old, post) => pre + updates.email + post
+      );
+    }
+  } else if (page === "services") {
+    // Update service items (image, title, description)
+    if (updates.services && Array.isArray(updates.services)) {
+      let svcIndex = 0;
+      html = html.replace(
+        /(<div\s+class="services-item">\s*<img\s+src=")([^"]+)("[^>]*>\s*<h3>)([\s\S]*?)(<\/h3>\s*<p>)([\s\S]*?)(<\/p>)/g,
+        (match, pre_img, _oldImg, post_img, _oldTitle, between, _oldDesc, after) => {
+          if (svcIndex < updates.services.length) {
+            const svc = updates.services[svcIndex];
+            svcIndex++;
+            return (
+              pre_img +
+              (svc.image || _oldImg) +
+              post_img +
+              (svc.title || _oldTitle) +
+              between +
+              (svc.description || _oldDesc) +
+              after
+            );
+          }
+          return match;
+        }
       );
     }
   }
@@ -817,6 +877,62 @@ async function handleListCloudImages(queryParams) {
   return response(200, images);
 }
 
+// 9. undo -------------------------------------------------------------------
+async function handleUndo(body) {
+  const { filePath } = body;
+  if (!filePath) {
+    return response(400, { error: "Missing required field: filePath" });
+  }
+
+  const octokit = getOctokit();
+  const { owner, repo } = getRepoInfo();
+
+  // Get the last 2 commits for this file
+  const { data: commits } = await octokit.repos.listCommits({
+    owner,
+    repo,
+    path: filePath,
+    per_page: 2,
+  });
+
+  if (commits.length < 2) {
+    return response(400, { error: "No previous version to undo to" });
+  }
+
+  // Get the file content from the previous commit
+  const prevSha = commits[1].sha;
+  let prevContent;
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: filePath,
+      ref: prevSha,
+    });
+    prevContent = Buffer.from(data.content, "base64").toString("utf-8");
+  } catch (err) {
+    return response(400, { error: "Could not retrieve previous version" });
+  }
+
+  // Get current file SHA for update
+  const { data: currentFile } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: filePath,
+  });
+
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: filePath,
+    message: `Undo last change to ${filePath} via admin panel`,
+    content: Buffer.from(prevContent).toString("base64"),
+    sha: currentFile.sha,
+  });
+
+  return response(200, { success: true });
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -875,6 +991,8 @@ exports.handler = async (event, context) => {
           return await handleUpdateGallery(body);
         case "update-content":
           return await handleUpdateContent(body);
+        case "undo":
+          return await handleUndo(body);
         default:
           return response(400, { error: `Unknown POST action: ${action}` });
       }

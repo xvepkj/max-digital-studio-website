@@ -506,6 +506,9 @@
         <button data-tab="events">
           <span class="icon">&#127881;</span> Events
         </button>
+        <button data-tab="services">
+          <span class="icon">&#128248;</span> Services
+        </button>
         <button data-tab="contact">
           <span class="icon">&#128222;</span> Contact
         </button>
@@ -549,6 +552,16 @@
         <div class="card">
           <h3 style="font-size:16px;margin-bottom:16px;">Hero Background Images</h3>
           <p style="font-size:13px;color:#666;margin-bottom:12px;">Select 2 images for the hero slider backgrounds. Click an image to select/deselect.</p>
+          <div id="heroPreview" style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+              <p style="font-size:12px;font-weight:600;color:#999;text-transform:uppercase;margin-bottom:8px;">Current</p>
+              <div id="heroPreviewCurrent" style="display:flex;gap:8px;"></div>
+            </div>
+            <div style="flex:1;min-width:200px;">
+              <p style="font-size:12px;font-weight:600;color:#27ae60;text-transform:uppercase;margin-bottom:8px;">New Selection</p>
+              <div id="heroPreviewNew" style="display:flex;gap:8px;"></div>
+            </div>
+          </div>
           <div class="portfolio-grid" id="heroImageGrid"></div>
           <p class="selection-count" id="heroImageCount">0 of 2 images selected</p>
         </div>
@@ -580,6 +593,24 @@
         <h2 class="section-title">About Page Content</h2>
 
         <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">About Photo</h3>
+          <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;">
+            <div>
+              <p style="font-size:12px;font-weight:600;color:#999;text-transform:uppercase;margin-bottom:8px;">Current</p>
+              <div id="aboutImagePreviewCurrent" style="width:150px;height:200px;border-radius:8px;overflow:hidden;border:1px solid #ddd;background:#f0f0f0;">
+              </div>
+            </div>
+            <div>
+              <p style="font-size:12px;font-weight:600;color:#27ae60;text-transform:uppercase;margin-bottom:8px;">New Selection</p>
+              <div id="aboutImagePreviewNew" style="width:150px;height:200px;border-radius:8px;overflow:hidden;border:1px solid #ddd;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px;">
+                No change
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" id="btnChangeAboutImage" type="button">Change Photo</button>
+        </div>
+
+        <div class="card">
           <h3 style="font-size:16px;margin-bottom:16px;">About Section</h3>
           <div class="form-group">
             <label>Title</label>
@@ -607,7 +638,7 @@
 
         <div class="card">
           <h3 style="font-size:16px;margin-bottom:16px;">Event Cards</h3>
-          <p style="font-size:13px;color:#666;margin-bottom:12px;">Edit the event cards shown on the Events page.</p>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Edit the event cards and images shown on the Events page.</p>
           <div id="eventCardsEditor"></div>
         </div>
 
@@ -618,6 +649,21 @@
 
         <div style="margin-top:8px;">
           <button class="btn btn-success" id="btnSaveEvents">&#10004; Save Events Page</button>
+        </div>
+      </div>
+
+      <!-- =============== SERVICES TAB =============== -->
+      <div class="tab-content" id="tab-services">
+        <h2 class="section-title">Services Page Content</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Service Items</h3>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Edit the service items shown on the Services page.</p>
+          <div id="servicesPageEditor"></div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveServices">&#10004; Save Services Page</button>
         </div>
       </div>
 
@@ -766,17 +812,42 @@
       return resp.json();
     }
 
-    function showToast(message, type = 'success') {
+    function showToast(message, type = 'success', undoFile = null) {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
       toast.className = `toast ${type}`;
-      toast.textContent = message;
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'center';
+      toast.style.gap = '12px';
+
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = message;
+      toast.appendChild(msgSpan);
+
+      if (undoFile && type === 'success') {
+        const undoBtn = document.createElement('button');
+        undoBtn.textContent = 'Undo';
+        undoBtn.style.cssText = 'background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;';
+        undoBtn.addEventListener('click', async () => {
+          undoBtn.disabled = true;
+          undoBtn.textContent = 'Undoing...';
+          try {
+            await apiPost({ action: 'undo', filePath: undoFile });
+            toast.remove();
+            showToast('Undo successful — change reverted');
+          } catch (err) {
+            showToast('Undo failed: ' + err.message, 'error');
+          }
+        });
+        toast.appendChild(undoBtn);
+      }
+
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.transition = 'opacity .3s';
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
-      }, 3500);
+      }, undoFile ? 8000 : 3500);
     }
 
     function showSpinner(el) {
@@ -809,6 +880,7 @@
         if (tab === 'home') loadHomeContent();
         if (tab === 'about') loadAboutContent();
         if (tab === 'events') loadEventsContent();
+        if (tab === 'services') loadServicesContent();
         if (tab === 'contact') loadContactContent();
 
         // Close mobile sidebar
@@ -1009,7 +1081,7 @@
         const allItems = [...otherItems, ...currentItems];
 
         await apiPost({ action: 'update-gallery', items: allItems });
-        showToast('Gallery updated successfully');
+        showToast('Gallery updated successfully', 'success', 'gallery.html');
 
         // Refresh the stored gallery data
         fullGalleryItems = allItems.map(path => ({ thumbPath: path }));
@@ -1146,6 +1218,22 @@
         homeContent = content;
 
         // Hero Background Images selector
+        // Show current hero images preview
+        const currentDiv = document.getElementById('heroPreviewCurrent');
+        currentDiv.innerHTML = '';
+        const currentHeroImages = content.heroImages || [];
+        if (currentHeroImages.length > 0) {
+          currentHeroImages.forEach(path => {
+            const img = document.createElement('img');
+            img.src = path.startsWith('http') ? path : '/' + path;
+            img.style.cssText = 'width:120px;height:80px;object-fit:cover;border-radius:6px;border:2px solid #ddd;';
+            img.loading = 'lazy';
+            currentDiv.appendChild(img);
+          });
+        } else {
+          currentDiv.innerHTML = '<span style="color:#aaa;font-size:12px;">None set</span>';
+        }
+
         selectedHeroImages = content.heroImages || [];
         await renderHeroImageSelector();
 
@@ -1269,6 +1357,7 @@
         });
 
         updateHeroImageCount();
+        updateHeroPreview();
 
       } catch (err) {
         grid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
@@ -1294,6 +1383,23 @@
     function updateHeroImageCount() {
       document.getElementById('heroImageCount').textContent =
         `${selectedHeroImages.length} of 2 images selected`;
+      updateHeroPreview();
+    }
+
+    function updateHeroPreview() {
+      const newDiv = document.getElementById('heroPreviewNew');
+      newDiv.innerHTML = '';
+      if (selectedHeroImages.length === 0) {
+        newDiv.innerHTML = '<span style="color:#aaa;font-size:12px;">No images selected</span>';
+        return;
+      }
+      selectedHeroImages.forEach(path => {
+        const img = document.createElement('img');
+        img.src = path.startsWith('http') ? path : '/' + path;
+        img.style.cssText = 'width:120px;height:80px;object-fit:cover;border-radius:6px;border:2px solid #27ae60;';
+        img.loading = 'lazy';
+        newDiv.appendChild(img);
+      });
     }
 
     // ---- Service Card Image Picker ----
@@ -1481,7 +1587,7 @@
           }
         });
 
-        showToast('Home page content saved');
+        showToast('Home page content saved', 'success', 'index.html');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
       } finally {
@@ -1506,6 +1612,14 @@
       try {
         const content = await apiGet({ action: 'get-content', page: 'about' });
         aboutContent = content;
+
+        // Show current about image
+        if (content.aboutImage) {
+          document.getElementById('aboutImagePreviewCurrent').innerHTML =
+            `<img src="/${content.aboutImage}" style="width:100%;height:100%;object-fit:cover;" alt="Current about photo">`;
+        }
+        selectedAboutImage = null;
+        document.getElementById('aboutImagePreviewNew').innerHTML = '<span style="color:#aaa;font-size:12px;">No change</span>';
 
         document.getElementById('aboutTitle').value = content.title || '';
         document.getElementById('aboutDesc').value = content.description || '';
@@ -1548,21 +1662,94 @@
           });
         });
 
+        const aboutPayload = {
+          title: document.getElementById('aboutTitle').value,
+          description: document.getElementById('aboutDesc').value,
+          features
+        };
+        if (selectedAboutImage) {
+          aboutPayload.aboutImage = selectedAboutImage;
+        }
+
         await apiPost({
           action: 'update-content',
           page: 'about',
-          content: {
-            title: document.getElementById('aboutTitle').value,
-            description: document.getElementById('aboutDesc').value,
-            features
-          }
+          content: aboutPayload
         });
 
-        showToast('About page content saved');
+        showToast('About page content saved', 'success', 'about.html');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
       } finally {
         setBtnLoading(btn, false);
+      }
+    });
+
+    // ---- About Image Picker ----
+    let selectedAboutImage = null;
+
+    document.getElementById('btnChangeAboutImage').addEventListener('click', async () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay visible';
+      overlay.style.zIndex = '300';
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.style.maxWidth = '600px';
+      modal.innerHTML = `
+        <h3>Select About Photo</h3>
+        <div class="portfolio-grid" id="aboutImagePickerGrid" style="max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="btnCancelAboutImg">Cancel</button>
+        </div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      document.getElementById('btnCancelAboutImg').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+      const pickerGrid = document.getElementById('aboutImagePickerGrid');
+      showSpinner(pickerGrid);
+
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+        const results = await Promise.all(
+          categories.flatMap(cat => [
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.fullUrl || img.path || `img/${cat}/${img.name}`
+              })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
+              .catch(() => [])
+          ])
+        );
+        results.forEach(imgs => allImages.push(...imgs));
+
+        pickerGrid.innerHTML = '';
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'port-item';
+          item.innerHTML = `<img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">`;
+          item.addEventListener('click', () => {
+            selectedAboutImage = img.fullPath;
+            document.getElementById('aboutImagePreviewNew').innerHTML =
+              `<img src="/${img.thumbUrl}" style="width:100%;height:100%;object-fit:cover;" alt="New about photo">`;
+            overlay.remove();
+          });
+          pickerGrid.appendChild(item);
+        });
+      } catch (err) {
+        pickerGrid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
       }
     });
 
@@ -1582,15 +1769,28 @@
         const cards = content.eventCards || [];
         cardsEditor.innerHTML = '';
         cards.forEach((card, i) => {
+          const imgPreview = card.image
+            ? `<img src="/${escapeAttr(card.image)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" alt="Event card">`
+            : `<span style="display:inline-block;width:60px;height:60px;background:#f0f0f0;border-radius:6px;border:1px solid #ddd;line-height:60px;text-align:center;color:#aaa;font-size:11px;">No img</span>`;
           cardsEditor.innerHTML += `
             <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
               <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Card ${i + 1}</h4>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <div class="event-img-preview" data-index="${i}">${imgPreview}</div>
+                <button class="btn btn-sm btn-outline event-change-img-btn" data-index="${i}" type="button">Change Image</button>
+                <input type="hidden" class="event-card-image" data-index="${i}" value="${escapeAttr(card.image || '')}">
+              </div>
               <div class="form-group">
                 <label>Title</label>
                 <input type="text" class="event-card-title" data-index="${i}" value="${escapeAttr(card.title || '')}">
               </div>
             </div>
           `;
+        });
+
+        // Attach event card image picker handlers
+        document.querySelectorAll('.event-change-img-btn').forEach(btn => {
+          btn.addEventListener('click', () => openEventImagePicker(parseInt(btn.dataset.index)));
         });
 
         if (cards.length === 0) {
@@ -1625,6 +1825,72 @@
       }
     }
 
+    async function openEventImagePicker(cardIndex) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay visible';
+      overlay.style.zIndex = '300';
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.style.maxWidth = '600px';
+      modal.innerHTML = `
+        <h3>Select Image for Event Card ${cardIndex + 1}</h3>
+        <div class="portfolio-grid" id="eventImagePickerGrid" style="max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="btnCancelEventImg">Cancel</button>
+        </div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      document.getElementById('btnCancelEventImg').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+      const pickerGrid = document.getElementById('eventImagePickerGrid');
+      showSpinner(pickerGrid);
+
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+        const results = await Promise.all(
+          categories.flatMap(cat => [
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.fullUrl || img.path || `img/${cat}/${img.name}`
+              })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
+              .catch(() => [])
+          ])
+        );
+        results.forEach(imgs => allImages.push(...imgs));
+
+        pickerGrid.innerHTML = '';
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'port-item';
+          item.innerHTML = `<img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">`;
+          item.addEventListener('click', () => {
+            const hiddenInput = document.querySelector(`.event-card-image[data-index="${cardIndex}"]`);
+            hiddenInput.value = img.fullPath;
+            const previewContainer = document.querySelector(`.event-img-preview[data-index="${cardIndex}"]`);
+            previewContainer.innerHTML = `<img src="/${img.thumbUrl}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" alt="Event card">`;
+            overlay.remove();
+          });
+          pickerGrid.appendChild(item);
+        });
+      } catch (err) {
+        pickerGrid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
+      }
+    }
+
     // Save Events Page
     document.getElementById('btnSaveEvents').addEventListener('click', async () => {
       const btn = document.getElementById('btnSaveEvents');
@@ -1634,7 +1900,8 @@
         const eventCards = [];
         document.querySelectorAll('.event-card-title').forEach((input, i) => {
           eventCards.push({
-            title: input.value
+            title: input.value,
+            image: document.querySelector(`.event-card-image[data-index="${i}"]`)?.value || ''
           });
         });
 
@@ -1655,7 +1922,164 @@
           }
         });
 
-        showToast('Events page content saved');
+        showToast('Events page content saved', 'success', 'events.html');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  SERVICES TAB
+    // ===================================================================
+    async function loadServicesContent() {
+      const editor = document.getElementById('servicesPageEditor');
+      showSpinner(editor);
+
+      try {
+        const content = await apiGet({ action: 'get-content', page: 'services' });
+
+        const services = content.services || [];
+        editor.innerHTML = '';
+        services.forEach((svc, i) => {
+          const imgPreview = svc.image
+            ? `<img src="/${escapeAttr(svc.image)}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" alt="Service">`
+            : `<span style="display:inline-block;width:80px;height:80px;background:#f0f0f0;border-radius:6px;border:1px solid #ddd;line-height:80px;text-align:center;color:#aaa;font-size:11px;">No img</span>`;
+
+          editor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Service ${i + 1}</h4>
+              <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px;">
+                <div>
+                  <p style="font-size:11px;color:#999;margin-bottom:4px;">Current</p>
+                  <div class="svcpage-img-current" data-index="${i}">${imgPreview}</div>
+                </div>
+                <div>
+                  <p style="font-size:11px;color:#27ae60;margin-bottom:4px;">New</p>
+                  <div class="svcpage-img-preview" data-index="${i}" style="width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #ddd;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:10px;">
+                    No change
+                  </div>
+                </div>
+                <div style="align-self:center;">
+                  <button class="btn btn-sm btn-outline svcpage-change-img-btn" data-index="${i}" type="button">Change Image</button>
+                  <input type="hidden" class="svcpage-image" data-index="${i}" value="${escapeAttr(svc.image || '')}">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="svcpage-title" data-index="${i}" value="${escapeAttr(svc.title || '')}">
+              </div>
+              <div class="form-group">
+                <label>Description</label>
+                <textarea class="svcpage-desc" data-index="${i}" rows="3">${escapeHTML(svc.description || '')}</textarea>
+              </div>
+            </div>
+          `;
+        });
+
+        if (services.length === 0) {
+          editor.innerHTML = '<p style="color:#999;font-size:13px;">No service items found.</p>';
+        }
+
+        // Attach image picker handlers
+        document.querySelectorAll('.svcpage-change-img-btn').forEach(btn => {
+          btn.addEventListener('click', () => openServicesImagePicker(parseInt(btn.dataset.index)));
+        });
+
+      } catch (err) {
+        editor.innerHTML = `<p style="color:#c0392b;">Failed to load: ${err.message}</p>`;
+      }
+    }
+
+    async function openServicesImagePicker(cardIndex) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay visible';
+      overlay.style.zIndex = '300';
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.style.maxWidth = '600px';
+      modal.innerHTML = `
+        <h3>Select Image for Service ${cardIndex + 1}</h3>
+        <div class="portfolio-grid" id="svcpageImagePickerGrid" style="max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="btnCancelSvcpageImg">Cancel</button>
+        </div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      document.getElementById('btnCancelSvcpageImg').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+      const pickerGrid = document.getElementById('svcpageImagePickerGrid');
+      showSpinner(pickerGrid);
+
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+        const results = await Promise.all(
+          categories.flatMap(cat => [
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.fullUrl || img.path || `img/${cat}/${img.name}`
+              })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img, category: cat,
+                thumbUrl: img.thumbUrl,
+                fullPath: img.fullUrl
+              })))
+              .catch(() => [])
+          ])
+        );
+        results.forEach(imgs => allImages.push(...imgs));
+
+        pickerGrid.innerHTML = '';
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'port-item';
+          item.innerHTML = `<img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">`;
+          item.addEventListener('click', () => {
+            const hiddenInput = document.querySelector(`.svcpage-image[data-index="${cardIndex}"]`);
+            hiddenInput.value = img.fullPath;
+            const previewContainer = document.querySelector(`.svcpage-img-preview[data-index="${cardIndex}"]`);
+            previewContainer.innerHTML = `<img src="/${img.thumbUrl}" style="width:100%;height:100%;object-fit:cover;" alt="Service">`;
+            overlay.remove();
+          });
+          pickerGrid.appendChild(item);
+        });
+      } catch (err) {
+        pickerGrid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
+      }
+    }
+
+    // Save Services Page
+    document.getElementById('btnSaveServices').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveServices');
+      setBtnLoading(btn, true);
+
+      try {
+        const services = [];
+        document.querySelectorAll('.svcpage-title').forEach((input, i) => {
+          services.push({
+            title: input.value,
+            description: document.querySelector(`.svcpage-desc[data-index="${i}"]`).value,
+            image: document.querySelector(`.svcpage-image[data-index="${i}"]`)?.value || ''
+          });
+        });
+
+        await apiPost({
+          action: 'update-content',
+          page: 'services',
+          content: { services }
+        });
+
+        showToast('Services page content saved', 'success', 'services.html');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
       } finally {
@@ -1694,7 +2118,7 @@
           }
         });
 
-        showToast('Contact page content saved');
+        showToast('Contact page content saved', 'success', 'contact.html');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
       } finally {
