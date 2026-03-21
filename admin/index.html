@@ -1234,7 +1234,7 @@
           currentDiv.innerHTML = '<span style="color:#aaa;font-size:12px;">None set</span>';
         }
 
-        selectedHeroImages = content.heroImages || [];
+        selectedHeroImages = []; // Start empty — "Current" preview shows what's live
         await renderHeroImageSelector();
 
         // Hero Slides
@@ -1579,12 +1579,11 @@
         await apiPost({
           action: 'update-content',
           page: 'home',
-          content: {
+          content: Object.assign({
             heroSlides,
             services,
-            portfolioImages: selectedPortfolio,
-            heroImages: selectedHeroImages
-          }
+            portfolioImages: selectedPortfolio
+          }, selectedHeroImages.length > 0 ? { heroImages: selectedHeroImages } : {})
         });
 
         showToast('Home page content saved', 'success', 'index.html');
