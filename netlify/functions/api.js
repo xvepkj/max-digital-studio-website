@@ -933,6 +933,142 @@ async function handleUndo(body) {
   return response(200, { success: true });
 }
 
+// 10. get-site-settings -----------------------------------------------------
+async function handleGetSiteSettings() {
+  const octokit = getOctokit();
+  const { owner, repo } = getRepoInfo();
+
+  // Read index.html to extract shared site settings
+  const { content: html } = await getFileContent(octokit, owner, repo, "index.html");
+
+  const settings = {};
+
+  // Instagram URL
+  const igMatch = html.match(/href="(https?:\/\/(?:www\.)?instagram\.com\/[^"]+)"/);
+  if (igMatch) settings.instagramUrl = igMatch[1];
+
+  // Nav logo
+  const navLogoMatch = html.match(/<img\s+src="([^"]+)"[^>]*alt=""[^>]*>\s*<\/a>\s*<\/div>\s*<!-- Logo End -->/);
+  if (navLogoMatch) settings.navLogo = navLogoMatch[1];
+  else settings.navLogo = "img/rahul-logo.png";
+
+  // Footer logo
+  const footerLogoMatch = html.match(/<div\s+class="footer-logo">\s*<a[^>]*>\s*<img\s+src="([^"]+)"/);
+  if (footerLogoMatch) settings.footerLogo = footerLogoMatch[1];
+  else settings.footerLogo = "img/rahul-logo-f.png";
+
+  // Footer Instagram photos
+  const fwMatch = html.match(/<div\s+class="fw-instagram">([\s\S]*?)<\/div>/);
+  const instaPhotos = [];
+  if (fwMatch) {
+    const imgRegex = /<img\s+src="([^"]+)"/g;
+    let m;
+    while ((m = imgRegex.exec(fwMatch[1])) !== null) {
+      instaPhotos.push(m[1]);
+    }
+  }
+  settings.instaPhotos = instaPhotos;
+
+  return response(200, settings);
+}
+
+// 11. update-site-settings --------------------------------------------------
+async function handleUpdateSiteSettings(body) {
+  const { instagramUrl, navLogo, footerLogo, instaPhotos, navLogoData, footerLogoData } = body;
+
+  const octokit = getOctokit();
+  const { owner, repo } = getRepoInfo();
+
+  // Pages that share the footer (all main pages)
+  const pages = [
+    "index.html", "about.html", "contact.html", "events.html",
+    "gallery.html", "services.html", "blog.html", "blog-details.html",
+    "portfolio.html", "portfolio-details.html", "pricing.html", "products.html"
+  ];
+
+  // If new logo files provided, commit them first
+  if (navLogoData) {
+    const cleanBase64 = navLogoData.includes(",") ? navLogoData.split(",")[1] : navLogoData;
+    let logoSha;
+    try {
+      const { data } = await octokit.repos.getContent({ owner, repo, path: "img/rahul-logo.png" });
+      logoSha = data.sha;
+    } catch (e) {}
+    await octokit.repos.createOrUpdateFileContents({
+      owner, repo, path: "img/rahul-logo.png",
+      message: "Update nav logo via admin panel",
+      content: cleanBase64,
+      ...(logoSha ? { sha: logoSha } : {})
+    });
+  }
+
+  if (footerLogoData) {
+    const cleanBase64 = footerLogoData.includes(",") ? footerLogoData.split(",")[1] : footerLogoData;
+    let logoSha;
+    try {
+      const { data } = await octokit.repos.getContent({ owner, repo, path: "img/rahul-logo-f.png" });
+      logoSha = data.sha;
+    } catch (e) {}
+    await octokit.repos.createOrUpdateFileContents({
+      owner, repo, path: "img/rahul-logo-f.png",
+      message: "Update footer logo via admin panel",
+      content: cleanBase64,
+      ...(logoSha ? { sha: logoSha } : {})
+    });
+  }
+
+  // Update HTML files
+  for (const page of pages) {
+    let html, sha;
+    try {
+      const result = await getFileContent(octokit, owner, repo, page);
+      html = result.content;
+      sha = result.sha;
+    } catch (e) {
+      continue; // Skip if page doesn't exist
+    }
+
+    let changed = false;
+
+    // Update Instagram URL
+    if (instagramUrl) {
+      const updated = html.replace(
+        /(href=")(https?:\/\/(?:www\.)?instagram\.com\/[^"]+)(")/g,
+        (match, pre, _old, post) => pre + instagramUrl + post
+      );
+      if (updated !== html) { html = updated; changed = true; }
+    }
+
+    // Update footer Instagram photos
+    if (instaPhotos && Array.isArray(instaPhotos) && instaPhotos.length > 0) {
+      let photoIndex = 0;
+      const updated = html.replace(
+        /(<div\s+class="fw-instagram">)([\s\S]*?)(<\/div>)/,
+        (match, open, content, close) => {
+          const newContent = content.replace(
+            /(<img\s+src=")([^"]+)(")/g,
+            (imgMatch, pre, _oldSrc, post) => {
+              if (photoIndex < instaPhotos.length) {
+                const newSrc = instaPhotos[photoIndex++];
+                return pre + newSrc + post;
+              }
+              return imgMatch;
+            }
+          );
+          return open + newContent + close;
+        }
+      );
+      if (updated !== html) { html = updated; changed = true; }
+    }
+
+    if (changed) {
+      await updateFile(octokit, owner, repo, page, html, `Update site settings in ${page} via admin panel`, sha);
+    }
+  }
+
+  return response(200, { success: true });
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -969,6 +1105,8 @@ exports.handler = async (event, context) => {
           return await handleCloudinaryConfig();
         case "list-cloud-images":
           return await handleListCloudImages(params);
+        case "get-site-settings":
+          return await handleGetSiteSettings();
         default:
           return response(400, { error: `Unknown GET action: ${action}` });
       }
@@ -993,6 +1131,8 @@ exports.handler = async (event, context) => {
           return await handleUpdateContent(body);
         case "undo":
           return await handleUndo(body);
+        case "update-site-settings":
+          return await handleUpdateSiteSettings(body);
         default:
           return response(400, { error: `Unknown POST action: ${action}` });
       }

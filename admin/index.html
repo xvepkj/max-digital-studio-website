@@ -512,6 +512,9 @@
         <button data-tab="contact">
           <span class="icon">&#128222;</span> Contact
         </button>
+        <button data-tab="settings">
+          <span class="icon">&#9881;</span> Settings
+        </button>
       </nav>
     </aside>
 
@@ -691,6 +694,73 @@
           <button class="btn btn-success" id="btnSaveContact">&#10004; Save Contact Page</button>
         </div>
       </div>
+      <!-- =============== SETTINGS TAB =============== -->
+      <div class="tab-content" id="tab-settings">
+        <h2 class="section-title">Site Settings</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Logos</h3>
+          <div style="display:flex;gap:32px;flex-wrap:wrap;">
+            <div>
+              <p style="font-size:12px;font-weight:600;color:#999;text-transform:uppercase;margin-bottom:8px;">Nav Logo (top bar)</p>
+              <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                <div>
+                  <p style="font-size:11px;color:#999;margin-bottom:4px;">Current</p>
+                  <img id="navLogoPreviewCurrent" src="" alt="Nav logo" style="height:50px;border:1px solid #ddd;border-radius:6px;padding:4px;background:#fff;display:none;">
+                </div>
+                <div>
+                  <p style="font-size:11px;color:#27ae60;margin-bottom:4px;">New</p>
+                  <img id="navLogoPreviewNew" src="" alt="New nav logo" style="height:50px;border:1px solid #27ae60;border-radius:6px;padding:4px;background:#fff;display:none;">
+                </div>
+                <div>
+                  <label class="btn btn-sm btn-outline" style="cursor:pointer;">
+                    Upload New <input type="file" id="navLogoInput" accept="image/*" style="display:none;">
+                  </label>
+                  <input type="hidden" id="navLogoData">
+                </div>
+              </div>
+            </div>
+            <div>
+              <p style="font-size:12px;font-weight:600;color:#999;text-transform:uppercase;margin-bottom:8px;">Footer Logo</p>
+              <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                <div>
+                  <p style="font-size:11px;color:#999;margin-bottom:4px;">Current</p>
+                  <img id="footerLogoPreviewCurrent" src="" alt="Footer logo" style="height:50px;border:1px solid #ddd;border-radius:6px;padding:4px;background:#1a1a2e;display:none;">
+                </div>
+                <div>
+                  <p style="font-size:11px;color:#27ae60;margin-bottom:4px;">New</p>
+                  <img id="footerLogoPreviewNew" src="" alt="New footer logo" style="height:50px;border:1px solid #27ae60;border-radius:6px;padding:4px;background:#1a1a2e;display:none;">
+                </div>
+                <div>
+                  <label class="btn btn-sm btn-outline" style="cursor:pointer;">
+                    Upload New <input type="file" id="footerLogoInput" accept="image/*" style="display:none;">
+                  </label>
+                  <input type="hidden" id="footerLogoData">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Footer Instagram Photos</h3>
+          <p style="font-size:13px;color:#666;margin-bottom:16px;">The 3 photos shown in the footer of every page.</p>
+          <div id="instaPhotosEditor" style="display:flex;gap:16px;flex-wrap:wrap;"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Instagram Link</h3>
+          <div class="form-group">
+            <label>Instagram Profile URL</label>
+            <input type="text" id="instagramUrl" placeholder="https://www.instagram.com/yourhandle/">
+          </div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveSettings">&#10004; Save Settings</button>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -882,6 +952,7 @@
         if (tab === 'events') loadEventsContent();
         if (tab === 'services') loadServicesContent();
         if (tab === 'contact') loadContactContent();
+        if (tab === 'settings') loadSiteSettings();
 
         // Close mobile sidebar
         closeSidebar();
@@ -2124,6 +2195,193 @@
         showToast('Contact page content saved', 'success', 'contact.html');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  SETTINGS TAB
+    // ===================================================================
+    let siteSettings = {};
+
+    async function loadSiteSettings() {
+      try {
+        const settings = await apiGet({ action: 'get-site-settings' });
+        siteSettings = settings;
+
+        // Nav logo current preview
+        if (settings.navLogo) {
+          const el = document.getElementById('navLogoPreviewCurrent');
+          el.src = '/' + settings.navLogo;
+          el.style.display = 'block';
+        }
+
+        // Footer logo current preview
+        if (settings.footerLogo) {
+          const el = document.getElementById('footerLogoPreviewCurrent');
+          el.src = '/' + settings.footerLogo;
+          el.style.display = 'block';
+        }
+
+        // Instagram URL
+        document.getElementById('instagramUrl').value = settings.instagramUrl || '';
+
+        // Instagram footer photos
+        renderInstaPhotosEditor(settings.instaPhotos || []);
+
+      } catch (err) {
+        showToast('Failed to load site settings', 'error');
+      }
+    }
+
+    function renderInstaPhotosEditor(photos) {
+      const editor = document.getElementById('instaPhotosEditor');
+      editor.innerHTML = '';
+
+      for (let i = 0; i < 3; i++) {
+        const currentSrc = photos[i] || '';
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;';
+        div.innerHTML = `
+          <p style="font-size:12px;color:#999;margin-bottom:6px;">Photo ${i + 1}</p>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <div>
+              <p style="font-size:10px;color:#999;margin-bottom:3px;">Current</p>
+              <div style="width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #ddd;background:#f0f0f0;">
+                ${currentSrc ? `<img src="${currentSrc.startsWith('http') ? currentSrc : '/' + currentSrc}" style="width:100%;height:100%;object-fit:cover;" alt="">` : ''}
+              </div>
+            </div>
+            <div>
+              <p style="font-size:10px;color:#27ae60;margin-bottom:3px;">New</p>
+              <div class="insta-new-preview" data-index="${i}" style="width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #27ae60;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:10px;">
+                -
+              </div>
+            </div>
+          </div>
+          <input type="hidden" class="insta-photo-value" data-index="${i}" value="${currentSrc}">
+          <button class="btn btn-sm btn-outline insta-change-btn" data-index="${i}" type="button" style="font-size:11px;">Change</button>
+        `;
+        editor.appendChild(div);
+      }
+
+      editor.querySelectorAll('.insta-change-btn').forEach(btn => {
+        btn.addEventListener('click', () => openInstaPhotoPicker(parseInt(btn.dataset.index)));
+      });
+    }
+
+    async function openInstaPhotoPicker(photoIndex) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay visible';
+      overlay.style.zIndex = '300';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.style.maxWidth = '600px';
+      modal.innerHTML = `
+        <h3>Select Footer Photo ${photoIndex + 1}</h3>
+        <div class="portfolio-grid" id="instaPickerGrid" style="max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions"><button class="btn btn-outline" id="btnCancelInstaPicker">Cancel</button></div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      document.getElementById('btnCancelInstaPicker').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+      const grid = document.getElementById('instaPickerGrid');
+      showSpinner(grid);
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+        const results = await Promise.all(
+          categories.flatMap(cat => [
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({ ...img, thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`, fullPath: img.fullUrl || img.path || `img/${cat}/${img.name}` })))
+              .catch(() => []),
+            apiGet({ action: 'list-cloud-images', category: cat })
+              .then(imgs => imgs.map(img => ({ ...img, thumbUrl: img.thumbUrl, fullPath: img.fullUrl })))
+              .catch(() => [])
+          ])
+        );
+        results.forEach(imgs => allImages.push(...imgs));
+        grid.innerHTML = '';
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'port-item';
+          item.innerHTML = `<img src="${img.thumbUrl.startsWith('http') ? img.thumbUrl : '/' + img.thumbUrl}" loading="lazy">`;
+          item.addEventListener('click', () => {
+            document.querySelector(`.insta-photo-value[data-index="${photoIndex}"]`).value = img.fullPath;
+            const preview = document.querySelector(`.insta-new-preview[data-index="${photoIndex}"]`);
+            preview.innerHTML = `<img src="${img.thumbUrl.startsWith('http') ? img.thumbUrl : '/' + img.thumbUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+            overlay.remove();
+          });
+          grid.appendChild(item);
+        });
+      } catch (err) {
+        grid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
+      }
+    }
+
+    // Logo file upload handlers
+    document.getElementById('navLogoInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.getElementById('navLogoData').value = reader.result;
+        const preview = document.getElementById('navLogoPreviewNew');
+        preview.src = reader.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('footerLogoInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.getElementById('footerLogoData').value = reader.result;
+        const preview = document.getElementById('footerLogoPreviewNew');
+        preview.src = reader.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Save Settings
+    document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveSettings');
+      setBtnLoading(btn, true);
+      try {
+        const instaPhotos = Array.from(document.querySelectorAll('.insta-photo-value'))
+          .map(el => el.value)
+          .filter(Boolean);
+
+        const payload = {
+          action: 'update-site-settings',
+          instagramUrl: document.getElementById('instagramUrl').value,
+          instaPhotos
+        };
+
+        const navLogoData = document.getElementById('navLogoData').value;
+        if (navLogoData) payload.navLogoData = navLogoData;
+
+        const footerLogoData = document.getElementById('footerLogoData').value;
+        if (footerLogoData) payload.footerLogoData = footerLogoData;
+
+        await apiPost(payload);
+        showToast('Settings saved', 'success');
+
+        // Reset logo inputs
+        document.getElementById('navLogoData').value = '';
+        document.getElementById('footerLogoData').value = '';
+        document.getElementById('navLogoInput').value = '';
+        document.getElementById('footerLogoInput').value = '';
+        document.getElementById('navLogoPreviewNew').style.display = 'none';
+        document.getElementById('footerLogoPreviewNew').style.display = 'none';
+
+      } catch (err) {
+        showToast('Failed to save settings: ' + err.message, 'error');
       } finally {
         setBtnLoading(btn, false);
       }
