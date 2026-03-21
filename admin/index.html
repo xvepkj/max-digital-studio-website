@@ -964,8 +964,8 @@
           thumbData: base64
         });
 
-        // Cache bust
-        imgEl.src = imgEl.src.split('?')[0] + '?t=' + Date.now();
+        // Show the rotated image immediately from canvas (don't wait for CDN deploy)
+        imgEl.src = canvas.toDataURL('image/webp', 0.9) || canvas.toDataURL('image/jpeg', 0.9);
         showToast('Image rotated successfully');
 
       } catch (err) {
