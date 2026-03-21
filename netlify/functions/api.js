@@ -44,6 +44,16 @@ function categoryToDir(category) {
   return CATEGORY_DIR_MAP[category] || category;
 }
 
+// Map page names to HTML filenames
+const PAGE_FILE_MAP = {
+  home: "index.html",
+  about: "about.html",
+  events: "events.html",
+  contact: "contact.html",
+  services: "services.html",
+  gallery: "gallery.html",
+};
+
 // Reverse map: directory name -> CSS filter class name
 const DIR_TO_CATEGORY_MAP = {
   wedding: "wedding",
@@ -263,10 +273,30 @@ async function handleUpdateGallery(body) {
     "gallery.html"
   );
 
+  // Normalize items: accept either path strings or {category, filename, height} objects
+  const normalizedItems = items.map((item) => {
+    if (typeof item === "string") {
+      // Path like "img/thumbs/wedding/wedding_1.webp"
+      const parts = item.split("/");
+      const filename = parts[parts.length - 1];
+      const catDirName = parts.length >= 3 ? parts[parts.length - 2] : "";
+      return {
+        category: dirToCategory(catDirName),
+        catDir: catDirName,
+        filename,
+        height: "",
+      };
+    }
+    return {
+      ...item,
+      catDir: categoryToDir(item.category),
+    };
+  });
+
   // Build new gallery items HTML
-  const itemsHtml = items
+  const itemsHtml = normalizedItems
     .map((item) => {
-      const catDir = categoryToDir(item.category);
+      const catDir = item.catDir || categoryToDir(item.category);
       const heightClass = item.height ? ` ${item.height}` : "";
       return [
         `                        <div class="gf-item set-bg ${item.category} lazy${heightClass}" data-bg="img/thumbs/${catDir}/${item.filename}">`,
@@ -341,16 +371,7 @@ async function handleGetContent(queryParams) {
     return response(400, { error: "Missing required query parameter: page" });
   }
 
-  const pageFileMap = {
-    home: "index.html",
-    about: "about.html",
-    services: "services.html",
-    contact: "contact.html",
-    events: "events.html",
-    gallery: "gallery.html",
-  };
-
-  const filename = pageFileMap[page] || `${page}.html`;
+  const filename = PAGE_FILE_MAP[page] || `${page}.html`;
   const octokit = getOctokit();
   const { owner, repo } = getRepoInfo();
 
@@ -368,18 +389,27 @@ async function handleGetContent(queryParams) {
   const parsed = {};
 
   if (page === "home") {
-    // Parse hero slides
+    // Parse hero slide images (data-setbg on .hs-item)
+    const heroImages = [];
+    const heroImgRegex = /<div\s+class="hs-item\s+set-bg"\s+data-setbg="([^"]+)"/g;
+    let heroImgMatch;
+    while ((heroImgMatch = heroImgRegex.exec(htmlContent)) !== null) {
+      heroImages.push(heroImgMatch[1].trim());
+    }
+    parsed.heroImages = heroImages;
+
+    // Parse hero slides text
     const heroSlides = [];
     const slideRegex =
       /<div\s+class="hs-item\s+set-bg"[^>]*>[\s\S]*?<h2>([\s\S]*?)<\/h2>\s*<p>([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>/g;
     let slideMatch;
     while ((slideMatch = slideRegex.exec(htmlContent)) !== null) {
       heroSlides.push({
-        title: slideMatch[1].trim(),
-        description: slideMatch[2].trim(),
+        heading: slideMatch[1].trim(),
+        text: slideMatch[2].trim(),
       });
     }
-    parsed.hero = heroSlides;
+    parsed.heroSlides = heroSlides;
 
     // Parse service cards
     const services = [];
@@ -395,25 +425,15 @@ async function handleGetContent(queryParams) {
     }
     parsed.services = services;
 
-    // Parse portfolio items
-    const portfolioItems = [];
+    // Parse portfolio items as array of thumb paths
+    const portfolioImages = [];
     const pfRegex =
-      /<div\s+class="pf-item[^"]*"\s+data-setbg="([^"]+)">\s*<a\s+href="([^"]+)"/g;
+      /<div\s+class="pf-item[^"]*"\s+data-setbg="([^"]+)"/g;
     let pfMatch;
     while ((pfMatch = pfRegex.exec(htmlContent)) !== null) {
-      const thumb = pfMatch[1];
-      const full = pfMatch[2];
-      const pathParts = thumb.split("/");
-      const fname = pathParts[pathParts.length - 1];
-      const catDirName = pathParts.length >= 3 ? pathParts[2] : "";
-      portfolioItems.push({
-        thumbPath: thumb,
-        fullPath: full,
-        filename: fname,
-        category: dirToCategory(catDirName),
-      });
+      portfolioImages.push(pfMatch[1].trim());
     }
-    parsed.portfolio = portfolioItems;
+    parsed.portfolioImages = portfolioImages;
   } else if (page === "about") {
     // Parse section title and description
     const titleMatch = htmlContent.match(
@@ -424,18 +444,63 @@ async function handleGetContent(queryParams) {
       parsed.description = titleMatch[2].trim();
     }
 
-    // Parse list items
-    const listItems = [];
+    // Parse feature list items
+    const features = [];
     const liRegex =
       /<div\s+class="al-text">\s*<h5>([\s\S]*?)<\/h5>\s*<p>([\s\S]*?)<\/p>/g;
     let liMatch;
     while ((liMatch = liRegex.exec(htmlContent)) !== null) {
-      listItems.push({
+      features.push({
         title: liMatch[1].trim(),
         description: liMatch[2].trim(),
       });
     }
-    parsed.listItems = listItems;
+    parsed.features = features;
+  } else if (page === "events") {
+    // Parse event cards: .services-item elements with <a> containing <img> and <h3>
+    const eventCards = [];
+    const cardRegex =
+      /<div\s+class="services-item">\s*<a\s+href="([^"]+)"[^>]*>\s*<img\s+src="([^"]+)"[^>]*>\s*<h3>([\s\S]*?)<\/h3>/g;
+    let cardMatch;
+    while ((cardMatch = cardRegex.exec(htmlContent)) !== null) {
+      eventCards.push({
+        title: cardMatch[3].trim(),
+        image: cardMatch[2].trim(),
+        link: cardMatch[1].trim(),
+      });
+    }
+    parsed.eventCards = eventCards;
+
+    // Parse event descriptions: .so-item elements with .so-title h5 and <p>
+    const eventDescs = [];
+    const descRegex =
+      /<div\s+class="so-item">\s*<div\s+class="so-title">\s*<div\s+class="so-number">[^<]*<\/div>\s*<h5>([\s\S]*?)<\/h5>\s*<\/div>\s*<p>([\s\S]*?)<\/p>/g;
+    let descMatch;
+    while ((descMatch = descRegex.exec(htmlContent)) !== null) {
+      eventDescs.push({
+        title: descMatch[1].trim(),
+        description: descMatch[2].trim(),
+      });
+    }
+    parsed.eventDescs = eventDescs;
+  } else if (page === "contact") {
+    // Parse address
+    const addrMatch = htmlContent.match(
+      /<div\s+class="ct-text">\s*<h5>Address<\/h5>\s*<p>([\s\S]*?)<\/p>/
+    );
+    if (addrMatch) parsed.address = addrMatch[1].trim();
+
+    // Parse phone (uses <ul><li>)
+    const phoneMatch = htmlContent.match(
+      /<div\s+class="ct-text">\s*<h5>Phone<\/h5>\s*<ul>\s*<li>([\s\S]*?)<\/li>/
+    );
+    if (phoneMatch) parsed.phone = phoneMatch[1].trim();
+
+    // Parse email
+    const emailMatch = htmlContent.match(
+      /<div\s+class="ct-text">\s*<h5>Email<\/h5>\s*<p>([\s\S]*?)<\/p>/
+    );
+    if (emailMatch) parsed.email = emailMatch[1].trim();
   }
 
   return response(200, parsed);
@@ -449,16 +514,7 @@ async function handleUpdateContent(body) {
     return response(400, { error: "Missing required fields: page, content" });
   }
 
-  const pageFileMap = {
-    home: "index.html",
-    about: "about.html",
-    services: "services.html",
-    contact: "contact.html",
-    events: "events.html",
-    gallery: "gallery.html",
-  };
-
-  const filename = pageFileMap[page] || `${page}.html`;
+  const filename = PAGE_FILE_MAP[page] || `${page}.html`;
   const octokit = getOctokit();
   const { owner, repo } = getRepoInfo();
 
@@ -475,22 +531,38 @@ async function handleUpdateContent(body) {
   }
 
   if (page === "home") {
-    // Update hero slides
-    if (updates.hero && Array.isArray(updates.hero)) {
+    // Update hero slides text
+    if (updates.heroSlides && Array.isArray(updates.heroSlides)) {
       let slideIndex = 0;
       html = html.replace(
         /(<div\s+class="hs-text">\s*<h2>)([\s\S]*?)(<\/h2>\s*<p>)([\s\S]*?)(<\/p>)/g,
         (match, before_h2, _oldTitle, between, _oldDesc, after_p) => {
-          if (slideIndex < updates.hero.length) {
-            const slide = updates.hero[slideIndex];
+          if (slideIndex < updates.heroSlides.length) {
+            const slide = updates.heroSlides[slideIndex];
             slideIndex++;
             return (
               before_h2 +
-              (slide.title || _oldTitle) +
+              (slide.heading || _oldTitle) +
               between +
-              (slide.description || _oldDesc) +
+              (slide.text || _oldDesc) +
               after_p
             );
+          }
+          return match;
+        }
+      );
+    }
+
+    // Update hero images (data-setbg on .hs-item divs)
+    if (updates.heroImages && Array.isArray(updates.heroImages)) {
+      let heroIndex = 0;
+      html = html.replace(
+        /(<div\s+class="hs-item\s+set-bg"\s+data-setbg=")([^"]*?)(")/g,
+        (match, pre, _oldPath, post) => {
+          if (heroIndex < updates.heroImages.length) {
+            const newPath = updates.heroImages[heroIndex];
+            heroIndex++;
+            return pre + newPath + post;
           }
           return match;
         }
@@ -520,6 +592,54 @@ async function handleUpdateContent(body) {
         }
       );
     }
+
+    // Update portfolio images (rebuild pf-item divs inside .portfolio-filter)
+    if (updates.portfolioImages && Array.isArray(updates.portfolioImages)) {
+      const pfItemsHtml = updates.portfolioImages
+        .map((thumbPath) => {
+          // thumbPath like "img/thumbs/wedding/wedding_1.webp"
+          const parts = thumbPath.split("/");
+          const filename = parts[parts.length - 1];
+          const catDirName = parts.length >= 3 ? parts[2] : "";
+          const catClass = dirToCategory(catDirName);
+          const fullPath = `img/${catDirName}/${filename}`;
+          return [
+            `                        <div class="pf-item col-6 col-sm-6 col-lg-4 set-bg ${catClass}" data-setbg="${thumbPath}">`,
+            `                            <a href="${fullPath}" class="pf-icon image-popup"><span class="icon_zoom-in_alt"></span></a>`,
+            `                        </div>`,
+          ].join("\n");
+        })
+        .join("\n");
+
+      // Find portfolio-filter div and replace its content
+      const pfOpenTag = '<div class="portfolio-filter">';
+      const pfOpenIdx = html.indexOf(pfOpenTag);
+      if (pfOpenIdx !== -1) {
+        const pfContentStart = pfOpenIdx + pfOpenTag.length;
+        let pfDepth = 1;
+        let pfI = pfContentStart;
+        while (pfI < html.length && pfDepth > 0) {
+          const pfNextOpen = html.indexOf("<div", pfI);
+          const pfNextClose = html.indexOf("</div>", pfI);
+          if (pfNextClose === -1) break;
+          if (pfNextOpen !== -1 && pfNextOpen < pfNextClose) {
+            pfDepth++;
+            pfI = pfNextOpen + 4;
+          } else {
+            pfDepth--;
+            if (pfDepth === 0) {
+              html =
+                html.substring(0, pfContentStart) +
+                "\n" +
+                pfItemsHtml +
+                "\n                    " +
+                html.substring(pfNextClose);
+            }
+            pfI = pfNextClose + 6;
+          }
+        }
+      }
+    }
   } else if (page === "about") {
     // Update section title and description
     if (updates.title !== undefined || updates.description !== undefined) {
@@ -537,14 +657,14 @@ async function handleUpdateContent(body) {
       );
     }
 
-    // Update list items
-    if (updates.listItems && Array.isArray(updates.listItems)) {
+    // Update feature list items
+    if (updates.features && Array.isArray(updates.features)) {
       let liIndex = 0;
       html = html.replace(
         /(<div\s+class="al-text">\s*<h5>)([\s\S]*?)(<\/h5>\s*<p>)([\s\S]*?)(<\/p>)/g,
         (match, pre_h5, oldTitle, between, oldDesc, after) => {
-          if (liIndex < updates.listItems.length) {
-            const item = updates.listItems[liIndex];
+          if (liIndex < updates.features.length) {
+            const item = updates.features[liIndex];
             liIndex++;
             return (
               pre_h5 +
@@ -556,6 +676,64 @@ async function handleUpdateContent(body) {
           }
           return match;
         }
+      );
+    }
+  } else if (page === "events") {
+    // Update event card titles (<h3> inside .services-item)
+    if (updates.eventCards && Array.isArray(updates.eventCards)) {
+      let cardIndex = 0;
+      html = html.replace(
+        /(<div\s+class="services-item">[\s\S]*?<h3>)([\s\S]*?)(<\/h3>)/g,
+        (match, pre, _oldTitle, post) => {
+          if (cardIndex < updates.eventCards.length) {
+            const card = updates.eventCards[cardIndex];
+            cardIndex++;
+            return pre + (card.title || _oldTitle) + post;
+          }
+          return match;
+        }
+      );
+    }
+
+    // Update event descriptions (.so-item blocks)
+    if (updates.eventDescs && Array.isArray(updates.eventDescs)) {
+      let descIndex = 0;
+      html = html.replace(
+        /(<div\s+class="so-item">\s*<div\s+class="so-title">\s*<div\s+class="so-number">[^<]*<\/div>\s*<h5>)([\s\S]*?)(<\/h5>\s*<\/div>\s*<p>)([\s\S]*?)(<\/p>)/g,
+        (match, pre_h5, _oldTitle, between, _oldDesc, after) => {
+          if (descIndex < updates.eventDescs.length) {
+            const desc = updates.eventDescs[descIndex];
+            descIndex++;
+            return (
+              pre_h5 +
+              (desc.title || _oldTitle) +
+              between +
+              (desc.description || _oldDesc) +
+              after
+            );
+          }
+          return match;
+        }
+      );
+    }
+  } else if (page === "contact") {
+    // Update contact info fields
+    if (updates.address !== undefined) {
+      html = html.replace(
+        /(<div\s+class="ct-text">\s*<h5>Address<\/h5>\s*<p>)([\s\S]*?)(<\/p>)/,
+        (match, pre, _old, post) => pre + updates.address + post
+      );
+    }
+    if (updates.phone !== undefined) {
+      html = html.replace(
+        /(<div\s+class="ct-text">\s*<h5>Phone<\/h5>\s*<ul>\s*<li>)([\s\S]*?)(<\/li>)/,
+        (match, pre, _old, post) => pre + updates.phone + post
+      );
+    }
+    if (updates.email !== undefined) {
+      html = html.replace(
+        /(<div\s+class="ct-text">\s*<h5>Email<\/h5>\s*<p>)([\s\S]*?)(<\/p>)/,
+        (match, pre, _old, post) => pre + updates.email + post
       );
     }
   }

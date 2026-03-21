@@ -503,6 +503,12 @@
         <button data-tab="about">
           <span class="icon">&#128100;</span> About
         </button>
+        <button data-tab="events">
+          <span class="icon">&#127881;</span> Events
+        </button>
+        <button data-tab="contact">
+          <span class="icon">&#128222;</span> Contact
+        </button>
       </nav>
     </aside>
 
@@ -541,12 +547,20 @@
         <h2 class="section-title">Home Page Content</h2>
 
         <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Hero Background Images</h3>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Select 2 images for the hero slider backgrounds. Click an image to select/deselect.</p>
+          <div class="portfolio-grid" id="heroImageGrid"></div>
+          <p class="selection-count" id="heroImageCount">0 of 2 images selected</p>
+        </div>
+
+        <div class="card">
           <h3 style="font-size:16px;margin-bottom:16px;">Hero Slides</h3>
           <div id="heroSlidesEditor"></div>
         </div>
 
         <div class="card">
           <h3 style="font-size:16px;margin-bottom:16px;">Service Cards</h3>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Select images for each service card:</p>
           <div id="serviceCardsEditor"></div>
         </div>
 
@@ -586,6 +600,51 @@
           <button class="btn btn-success" id="btnSaveAbout">&#10004; Save About Page</button>
         </div>
       </div>
+
+      <!-- =============== EVENTS TAB =============== -->
+      <div class="tab-content" id="tab-events">
+        <h2 class="section-title">Events Page Content</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Event Cards</h3>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Edit the event cards shown on the Events page.</p>
+          <div id="eventCardsEditor"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Event Descriptions</h3>
+          <div id="eventDescEditor"></div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveEvents">&#10004; Save Events Page</button>
+        </div>
+      </div>
+
+      <!-- =============== CONTACT TAB =============== -->
+      <div class="tab-content" id="tab-contact">
+        <h2 class="section-title">Contact Page Content</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Contact Information</h3>
+          <div class="form-group">
+            <label>Address</label>
+            <input type="text" id="contactAddress">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="contactPhone">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="text" id="contactEmail">
+          </div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveContact">&#10004; Save Contact Page</button>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -619,11 +678,15 @@
 
     // ---- State ----
     let currentCategory = 'wedding';
+    let fullGalleryItems = []; // all gallery items from all categories
     let galleryConfig = {};      // { imagePath: true/false }
     let selectedPortfolio = [];  // array of image paths
     let uploadFiles = [];
     let homeContent = null;
     let aboutContent = null;
+    let eventsContent = null;
+    let contactContent = null;
+    let selectedHeroImages = [];
 
     // ---- Auth ----
     netlifyIdentity.init();
@@ -740,6 +803,8 @@
         if (tab === 'gallery') loadGalleryImages();
         if (tab === 'home') loadHomeContent();
         if (tab === 'about') loadAboutContent();
+        if (tab === 'events') loadEventsContent();
+        if (tab === 'contact') loadContactContent();
 
         // Close mobile sidebar
         closeSidebar();
@@ -782,8 +847,10 @@
           apiGet({ action: 'get-gallery' }).catch(() => ({ items: [] }))
         ]);
 
-        // Build gallery lookup
-        const galleryPaths = new Set((gallery.items || gallery || []).map(i => typeof i === 'string' ? i : i.path));
+        // Build gallery lookup — store full gallery for merging on save
+        const galleryItemsArr = Array.isArray(gallery) ? gallery : (gallery.items || []);
+        fullGalleryItems = galleryItemsArr;
+        const galleryPaths = new Set(galleryItemsArr.map(i => typeof i === 'string' ? i : (i.thumbPath || i.filename)));
 
         grid.innerHTML = '';
         if (!images || images.length === 0) {
@@ -844,8 +911,8 @@
       try {
         // Load image into canvas and rotate
         const image = new Image();
-        image.crossOrigin = 'anonymous';
-        image.src = imgEl.src;
+        // Add cache-busting to avoid using a cached version that might not have CORS headers
+        image.src = imgEl.src.split('?')[0] + '?rot=' + Date.now();
 
         await new Promise((resolve, reject) => {
           image.onload = resolve;
@@ -868,7 +935,14 @@
         ctx.rotate((degrees * Math.PI) / 180);
         ctx.drawImage(image, -image.width / 2, -image.height / 2);
 
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+        // Try WebP first, fall back to JPEG if browser doesn't support WebP encoding
+        let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+        if (!blob) {
+          blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+        }
+        if (!blob) {
+          throw new Error('Failed to encode rotated image');
+        }
         const reader = new FileReader();
         const base64 = await new Promise(resolve => {
           reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -901,17 +975,35 @@
       }
     }
 
-    // Save Gallery
+    // Save Gallery — merge current category changes with other categories
     document.getElementById('btnSaveGallery').addEventListener('click', async () => {
       const btn = document.getElementById('btnSaveGallery');
       setBtnLoading(btn, true);
 
       try {
-        const checked = document.querySelectorAll('#galleryGrid .gallery-toggle input:checked');
-        const items = Array.from(checked).map(cb => cb.dataset.path);
+        // Determine the dir name for the current category
+        const catDirMap = { wedding: 'wedding', sagan: 'sagan', 'pre_wedding': 'pre_wedding', 'pre-wedding': 'pre_wedding' };
+        const currentCatDir = catDirMap[currentCategory] || currentCategory;
 
-        await apiPost({ action: 'update-gallery', items });
+        // Keep gallery items from OTHER categories
+        const otherItems = fullGalleryItems.filter(item => {
+          const itemPath = typeof item === 'string' ? item : (item.thumbPath || '');
+          // Check if this item belongs to current category by its path
+          return !itemPath.includes(`/thumbs/${currentCatDir}/`);
+        }).map(item => typeof item === 'string' ? item : item.thumbPath);
+
+        // Get checked items from current category
+        const checked = document.querySelectorAll('#galleryGrid .gallery-toggle input:checked');
+        const currentItems = Array.from(checked).map(cb => cb.dataset.path);
+
+        // Merge: other categories + current category
+        const allItems = [...otherItems, ...currentItems];
+
+        await apiPost({ action: 'update-gallery', items: allItems });
         showToast('Gallery updated successfully');
+
+        // Refresh the stored gallery data
+        fullGalleryItems = allItems.map(path => ({ thumbPath: path }));
       } catch (err) {
         showToast('Failed to save gallery: ' + err.message, 'error');
       } finally {
@@ -1017,10 +1109,12 @@
       const slidesEditor = document.getElementById('heroSlidesEditor');
       const cardsEditor = document.getElementById('serviceCardsEditor');
       const portfolioGrid = document.getElementById('portfolioGrid');
+      const heroImageGrid = document.getElementById('heroImageGrid');
 
       showSpinner(slidesEditor);
       cardsEditor.innerHTML = '';
       portfolioGrid.innerHTML = '';
+      heroImageGrid.innerHTML = '';
 
       try {
         const [content, images] = await Promise.all([
@@ -1029,6 +1123,10 @@
         ]);
 
         homeContent = content;
+
+        // Hero Background Images selector
+        selectedHeroImages = content.heroImages || [];
+        await renderHeroImageSelector();
 
         // Hero Slides
         const slides = content.heroSlides || [
@@ -1055,17 +1153,25 @@
 
         // Service Cards
         const services = content.services || [
-          { title: '', description: '' },
-          { title: '', description: '' },
-          { title: '', description: '' },
-          { title: '', description: '' }
+          { title: '', description: '', image: '' },
+          { title: '', description: '', image: '' },
+          { title: '', description: '', image: '' },
+          { title: '', description: '', image: '' }
         ];
 
         cardsEditor.innerHTML = '';
         services.forEach((svc, i) => {
+          const imgPreview = svc.image
+            ? `<img src="/${escapeAttr(svc.image)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" alt="Card image">`
+            : `<span style="display:inline-block;width:60px;height:60px;background:#f0f0f0;border-radius:6px;border:1px solid #ddd;line-height:60px;text-align:center;color:#aaa;font-size:11px;">No img</span>`;
           cardsEditor.innerHTML += `
             <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
               <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Card ${i + 1}</h4>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <div class="svc-img-preview" data-index="${i}">${imgPreview}</div>
+                <button class="btn btn-sm btn-outline svc-change-img-btn" data-index="${i}" type="button">Change Image</button>
+                <input type="hidden" class="svc-image" data-index="${i}" value="${escapeAttr(svc.image || '')}">
+              </div>
               <div class="form-group">
                 <label>Title</label>
                 <input type="text" class="svc-title" data-index="${i}" value="${escapeAttr(svc.title || '')}">
@@ -1078,6 +1184,11 @@
           `;
         });
 
+        // Attach service card image picker handlers
+        document.querySelectorAll('.svc-change-img-btn').forEach(btn => {
+          btn.addEventListener('click', () => openServiceImagePicker(parseInt(btn.dataset.index)));
+        });
+
         // Portfolio image selector
         selectedPortfolio = content.portfolioImages || [];
         await renderPortfolioSelector();
@@ -1085,6 +1196,141 @@
       } catch (err) {
         slidesEditor.innerHTML = `<p style="color:#c0392b;">Failed to load: ${err.message}</p>`;
         showToast('Failed to load home page content', 'error');
+      }
+    }
+
+    // ---- Hero Image Selector ----
+    async function renderHeroImageSelector() {
+      const grid = document.getElementById('heroImageGrid');
+      grid.innerHTML = '';
+
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+
+        const results = await Promise.all(
+          categories.map(cat =>
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.fullUrl || `img/${cat}/${img.name}`
+              })))
+              .catch(() => [])
+          )
+        );
+
+        results.forEach(imgs => allImages.push(...imgs));
+
+        const selectedSet = new Set(selectedHeroImages);
+
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = `port-item${selectedSet.has(img.fullPath) ? ' selected' : ''}`;
+          item.dataset.path = img.fullPath;
+          item.innerHTML = `
+            <img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">
+            <div class="check-badge">&#10003;</div>
+          `;
+          item.addEventListener('click', () => {
+            toggleHeroImageItem(item, img.fullPath);
+          });
+          grid.appendChild(item);
+        });
+
+        updateHeroImageCount();
+
+      } catch (err) {
+        grid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
+      }
+    }
+
+    function toggleHeroImageItem(el, path) {
+      const idx = selectedHeroImages.indexOf(path);
+      if (idx > -1) {
+        selectedHeroImages.splice(idx, 1);
+        el.classList.remove('selected');
+      } else {
+        if (selectedHeroImages.length >= 2) {
+          showToast('Maximum 2 images allowed for hero background', 'info');
+          return;
+        }
+        selectedHeroImages.push(path);
+        el.classList.add('selected');
+      }
+      updateHeroImageCount();
+    }
+
+    function updateHeroImageCount() {
+      document.getElementById('heroImageCount').textContent =
+        `${selectedHeroImages.length} of 2 images selected`;
+    }
+
+    // ---- Service Card Image Picker ----
+    async function openServiceImagePicker(cardIndex) {
+      // Create a modal overlay for picking an image
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay visible';
+      overlay.style.zIndex = '300';
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.style.maxWidth = '600px';
+      modal.innerHTML = `
+        <h3>Select Image for Service Card ${cardIndex + 1}</h3>
+        <div class="portfolio-grid" id="svcImagePickerGrid" style="max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="btnCancelSvcImg">Cancel</button>
+        </div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      // Close handlers
+      document.getElementById('btnCancelSvcImg').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+      const pickerGrid = document.getElementById('svcImagePickerGrid');
+      showSpinner(pickerGrid);
+
+      try {
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+        const results = await Promise.all(
+          categories.map(cat =>
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.path || `img/thumbs/${cat}/${img.name}`
+              })))
+              .catch(() => [])
+          )
+        );
+        results.forEach(imgs => allImages.push(...imgs));
+
+        pickerGrid.innerHTML = '';
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'port-item';
+          item.dataset.path = img.fullPath;
+          item.innerHTML = `
+            <img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">
+          `;
+          item.addEventListener('click', () => {
+            // Set the image for this service card
+            const hiddenInput = document.querySelector(`.svc-image[data-index="${cardIndex}"]`);
+            hiddenInput.value = img.fullPath;
+            const previewContainer = document.querySelector(`.svc-img-preview[data-index="${cardIndex}"]`);
+            previewContainer.innerHTML = `<img src="/${img.thumbUrl}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" alt="Card image">`;
+            overlay.remove();
+          });
+          pickerGrid.appendChild(item);
+        });
+      } catch (err) {
+        pickerGrid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
       }
     }
 
@@ -1174,7 +1420,8 @@
         document.querySelectorAll('.svc-title').forEach((input, i) => {
           services.push({
             title: input.value,
-            description: document.querySelector(`.svc-desc[data-index="${i}"]`).value
+            description: document.querySelector(`.svc-desc[data-index="${i}"]`).value,
+            image: document.querySelector(`.svc-image[data-index="${i}"]`)?.value || ''
           });
         });
 
@@ -1184,7 +1431,8 @@
           content: {
             heroSlides,
             services,
-            portfolioImages: selectedPortfolio
+            portfolioImages: selectedPortfolio,
+            heroImages: selectedHeroImages
           }
         });
 
@@ -1266,6 +1514,142 @@
         });
 
         showToast('About page content saved');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  EVENTS TAB
+    // ===================================================================
+    async function loadEventsContent() {
+      const cardsEditor = document.getElementById('eventCardsEditor');
+      const descEditor = document.getElementById('eventDescEditor');
+      showSpinner(cardsEditor);
+
+      try {
+        const content = await apiGet({ action: 'get-content', page: 'events' });
+        eventsContent = content;
+
+        // Event cards (image cards at top of events page)
+        const cards = content.eventCards || [];
+        cardsEditor.innerHTML = '';
+        cards.forEach((card, i) => {
+          cardsEditor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Card ${i + 1}</h4>
+              <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="event-card-title" data-index="${i}" value="${escapeAttr(card.title || '')}">
+              </div>
+            </div>
+          `;
+        });
+
+        if (cards.length === 0) {
+          cardsEditor.innerHTML = '<p style="color:#999;font-size:13px;">No event cards found.</p>';
+        }
+
+        // Event descriptions
+        const descs = content.eventDescs || [];
+        descEditor.innerHTML = '';
+        descs.forEach((desc, i) => {
+          descEditor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <h4 style="font-size:13px;color:#999;margin-bottom:10px;">${escapeHTML(desc.title || 'Item ' + (i+1))}</h4>
+              <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="event-desc-title" data-index="${i}" value="${escapeAttr(desc.title || '')}">
+              </div>
+              <div class="form-group">
+                <label>Description</label>
+                <textarea class="event-desc-text" data-index="${i}" rows="3">${escapeHTML(desc.description || '')}</textarea>
+              </div>
+            </div>
+          `;
+        });
+
+        if (descs.length === 0) {
+          descEditor.innerHTML = '<p style="color:#999;font-size:13px;">No event descriptions found.</p>';
+        }
+
+      } catch (err) {
+        cardsEditor.innerHTML = `<p style="color:#c0392b;">Failed to load: ${err.message}</p>`;
+      }
+    }
+
+    // Save Events Page
+    document.getElementById('btnSaveEvents').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveEvents');
+      setBtnLoading(btn, true);
+
+      try {
+        const eventCards = [];
+        document.querySelectorAll('.event-card-title').forEach((input, i) => {
+          eventCards.push({
+            title: input.value
+          });
+        });
+
+        const eventDescs = [];
+        document.querySelectorAll('.event-desc-title').forEach((input, i) => {
+          eventDescs.push({
+            title: input.value,
+            description: document.querySelector(`.event-desc-text[data-index="${i}"]`).value
+          });
+        });
+
+        await apiPost({
+          action: 'update-content',
+          page: 'events',
+          content: {
+            eventCards,
+            eventDescs
+          }
+        });
+
+        showToast('Events page content saved');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  CONTACT TAB
+    // ===================================================================
+    async function loadContactContent() {
+      try {
+        const content = await apiGet({ action: 'get-content', page: 'contact' });
+        contactContent = content;
+        document.getElementById('contactAddress').value = content.address || '';
+        document.getElementById('contactPhone').value = content.phone || '';
+        document.getElementById('contactEmail').value = content.email || '';
+      } catch (err) {
+        showToast('Failed to load contact content', 'error');
+      }
+    }
+
+    // Save Contact Page
+    document.getElementById('btnSaveContact').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveContact');
+      setBtnLoading(btn, true);
+
+      try {
+        await apiPost({
+          action: 'update-content',
+          page: 'contact',
+          content: {
+            address: document.getElementById('contactAddress').value,
+            phone: document.getElementById('contactPhone').value,
+            email: document.getElementById('contactEmail').value
+          }
+        });
+
+        showToast('Contact page content saved');
       } catch (err) {
         showToast('Failed to save: ' + err.message, 'error');
       } finally {
