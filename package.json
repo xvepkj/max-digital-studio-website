@@ -1,0 +1,7 @@
+{
+  "name": "max-digital-studio-website",
+  "private": true,
+  "dependencies": {
+    "@octokit/rest": "^20.0.0"
+  }
+}

@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Max Digital Studio - Admin Panel</title>
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    /* ---------- Auth Screen ---------- */
+    .auth-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    .auth-box {
+      background: #fff;
+      padding: 48px 40px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      max-width: 400px;
+      width: 90%;
+    }
+    .auth-box h1 { font-size: 22px; margin-bottom: 8px; color: #1a1a2e; }
+    .auth-box p { color: #777; margin-bottom: 28px; font-size: 14px; }
+    .auth-box .btn-login {
+      background: #c0392b;
+      color: #fff;
+      border: none;
+      padding: 14px 36px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .auth-box .btn-login:hover { background: #a93226; }
+
+    /* ---------- Layout ---------- */
+    .app { display: none; min-height: 100vh; }
+    .app.visible { display: flex; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1a1a2e;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 100;
+      transition: transform .3s ease;
+    }
+    .sidebar-brand {
+      padding: 20px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      letter-spacing: .5px;
+    }
+    .sidebar nav { flex: 1; padding: 12px 0; }
+    .sidebar nav button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,.6);
+      padding: 13px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: all .15s;
+    }
+    .sidebar nav button:hover { color: #fff; background: rgba(255,255,255,.06); }
+    .sidebar nav button.active {
+      color: #fff;
+      background: rgba(255,255,255,.1);
+      border-left: 3px solid #c0392b;
+    }
+    .sidebar nav button .icon { font-size: 18px; width: 24px; text-align: center; }
+
+    /* Top Bar */
+    .topbar {
+      height: 60px;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: fixed;
+      top: 0;
+      left: 220px;
+      right: 0;
+      z-index: 90;
+    }
+    .topbar-title { font-size: 17px; font-weight: 600; color: #1a1a2e; }
+    .btn-logout {
+      background: none;
+      border: 1px solid #ddd;
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #555;
+      transition: all .2s;
+    }
+    .btn-logout:hover { border-color: #c0392b; color: #c0392b; }
+
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #1a1a2e;
+      padding: 4px;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      margin-left: 220px;
+      margin-top: 60px;
+      padding: 28px;
+      min-height: calc(100vh - 60px);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ---------- Shared Components ---------- */
+    h2.section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: #c0392b; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #a93226; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #219a52; }
+    .btn-outline {
+      background: #fff;
+      color: #555;
+      border: 1px solid #ddd;
+    }
+    .btn-outline:hover:not(:disabled) { border-color: #999; color: #333; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .form-group input[type="text"],
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color .2s;
+      background: #fafafa;
+    }
+    .form-group input[type="text"]:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #c0392b;
+      background: #fff;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    /* ---------- Gallery Tab ---------- */
+    .category-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .category-btn {
+      padding: 9px 22px;
+      border: 2px solid #ddd;
+      border-radius: 24px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      text-transform: capitalize;
+    }
+    .category-btn:hover { border-color: #c0392b; color: #c0392b; }
+    .category-btn.active {
+      background: #c0392b;
+      color: #fff;
+      border-color: #c0392b;
+    }
+
+    .gallery-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .image-card {
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+      transition: box-shadow .2s;
+    }
+    .image-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+    .image-card .thumb-wrap {
+      width: 100%;
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .image-card .thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform .3s;
+    }
+    .image-card:hover .thumb-wrap img { transform: scale(1.03); }
+    .image-card .card-body { padding: 12px; }
+    .image-card .filename {
+      font-size: 12px;
+      color: #777;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 10px;
+      title: attr(data-name);
+    }
+    .image-card .card-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .image-card .rotate-btn {
+      padding: 5px 10px;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .image-card .rotate-btn:hover { border-color: #c0392b; color: #c0392b; }
+    .image-card .rotate-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .image-card .gallery-toggle {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #555;
+    }
+    .image-card .gallery-toggle input { cursor: pointer; width: 16px; height: 16px; accent-color: #27ae60; }
+
+    /* ---------- Spinner ---------- */
+    .spinner-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 0;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #eee;
+      border-top-color: #c0392b;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Toast ---------- */
+    .toast-container {
+      position: fixed;
+      top: 72px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 14px 22px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      animation: slideIn .3s ease;
+      max-width: 360px;
+    }
+    .toast.success { background: #27ae60; }
+    .toast.error { background: #c0392b; }
+    .toast.info { background: #2980b9; }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ---------- Upload Modal ---------- */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 480px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .modal h3 { margin-bottom: 18px; font-size: 18px; }
+    .modal .upload-zone {
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s;
+      margin-bottom: 18px;
+      color: #888;
+    }
+    .modal .upload-zone:hover { border-color: #c0392b; }
+    .modal .upload-zone.dragover { border-color: #c0392b; background: #fff5f5; }
+    .modal .upload-zone input[type="file"] { display: none; }
+    .modal .upload-preview { max-height: 200px; overflow-y: auto; margin-bottom: 16px; }
+    .modal .upload-preview .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 13px;
+      color: #555;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .modal .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ---------- Portfolio Image Selector ---------- */
+    .portfolio-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .portfolio-grid .port-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: border-color .2s;
+    }
+    .portfolio-grid .port-item.selected { border-color: #27ae60; }
+    .portfolio-grid .port-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .portfolio-grid .port-item .check-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      background: #27ae60;
+      color: #fff;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .portfolio-grid .port-item.selected .check-badge { display: flex; }
+
+    .selection-count {
+      font-size: 13px;
+      color: #777;
+      margin-bottom: 12px;
+    }
+
+    /* ---------- Sidebar overlay for mobile ---------- */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 99;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.visible { display: block; }
+      .topbar { left: 0; }
+      .main { margin-left: 0; }
+      .hamburger { display: block; }
+      .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Auth Screen -->
+  <div class="auth-screen" id="authScreen">
+    <div class="auth-box">
+      <h1>Max Digital Studio</h1>
+      <p>Admin Panel &mdash; Sign in to manage your site</p>
+      <button class="btn-login" id="btnLogin">Sign In</button>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div class="app" id="app">
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">Max Digital Studio</div>
+      <nav>
+        <button class="active" data-tab="gallery">
+          <span class="icon">&#128247;</span> Gallery
+        </button>
+        <button data-tab="home">
+          <span class="icon">&#127968;</span> Home Page
+        </button>
+        <button data-tab="about">
+          <span class="icon">&#128100;</span> About
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">&#9776;</button>
+        <span class="topbar-title">Admin Dashboard</span>
+      </div>
+      <button class="btn-logout" id="btnLogout">Sign Out</button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+
+      <!-- =============== GALLERY TAB =============== -->
+      <div class="tab-content active" id="tab-gallery">
+        <h2 class="section-title">Gallery Management</h2>
+
+        <div class="category-bar">
+          <button class="category-btn active" data-category="wedding">Wedding</button>
+          <button class="category-btn" data-category="sagan">Sagan</button>
+          <button class="category-btn" data-category="pre_wedding">Pre-Wedding</button>
+        </div>
+
+        <div class="gallery-actions">
+          <button class="btn btn-primary" id="btnUpload">&#10010; Upload Images</button>
+          <button class="btn btn-success" id="btnSaveGallery">&#10004; Save Changes</button>
+        </div>
+
+        <div id="galleryGrid"></div>
+      </div>
+
+      <!-- =============== HOME TAB =============== -->
+      <div class="tab-content" id="tab-home">
+        <h2 class="section-title">Home Page Content</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Hero Slides</h3>
+          <div id="heroSlidesEditor"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Service Cards</h3>
+          <div id="serviceCardsEditor"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Portfolio &mdash; Our Works</h3>
+          <p class="selection-count" id="portfolioCount">Select up to 9 images for the homepage portfolio grid.</p>
+          <div class="portfolio-grid" id="portfolioGrid"></div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveHome">&#10004; Save Home Page</button>
+        </div>
+      </div>
+
+      <!-- =============== ABOUT TAB =============== -->
+      <div class="tab-content" id="tab-about">
+        <h2 class="section-title">About Page Content</h2>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">About Section</h3>
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="aboutTitle">
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="aboutDesc" rows="5"></textarea>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:16px;margin-bottom:16px;">Feature List</h3>
+          <div id="aboutFeaturesEditor"></div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <button class="btn btn-success" id="btnSaveAbout">&#10004; Save About Page</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal">
+      <h3>Upload Images</h3>
+      <div class="upload-zone" id="uploadZone">
+        <p style="font-size:32px;margin-bottom:8px;">&#128228;</p>
+        <p>Drag &amp; drop images here or <strong>click to browse</strong></p>
+        <p style="font-size:12px;margin-top:6px;">Supports JPEG, PNG, WebP</p>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+      </div>
+      <div class="upload-preview" id="uploadPreview"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="btnCancelUpload">Cancel</button>
+        <button class="btn btn-primary" id="btnConfirmUpload" disabled>Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    /* =========================================================
+       Max Digital Studio — Admin Panel
+       ========================================================= */
+
+    const API_BASE = '/.netlify/functions/api';
+
+    // ---- State ----
+    let currentCategory = 'wedding';
+    let galleryConfig = {};      // { imagePath: true/false }
+    let selectedPortfolio = [];  // array of image paths
+    let uploadFiles = [];
+    let homeContent = null;
+    let aboutContent = null;
+
+    // ---- Auth ----
+    netlifyIdentity.init();
+
+    function checkAuth() {
+      const user = netlifyIdentity.currentUser();
+      if (user) {
+        showApp();
+      } else {
+        showAuth();
+      }
+    }
+
+    function showAuth() {
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('app').classList.remove('visible');
+    }
+
+    function showApp() {
+      document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      loadGalleryImages();
+    }
+
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      netlifyIdentity.open('login');
+    });
+
+    netlifyIdentity.on('login', () => {
+      showApp();
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', () => {
+      netlifyIdentity.logout();
+    });
+
+    netlifyIdentity.on('logout', () => {
+      showAuth();
+    });
+
+    // Run initial check
+    checkAuth();
+
+    // ---- Helpers ----
+    async function getToken() {
+      const user = netlifyIdentity.currentUser();
+      if (!user) throw new Error('Not authenticated');
+      return await user.jwt();
+    }
+
+    async function apiGet(params) {
+      const token = await getToken();
+      const qs = new URLSearchParams(params).toString();
+      const resp = await fetch(`${API_BASE}?${qs}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      return resp.json();
+    }
+
+    async function apiPost(body) {
+      const token = await getToken();
+      const resp = await fetch(API_BASE, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      return resp.json();
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity .3s';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function showSpinner(el) {
+      el.innerHTML = '<div class="spinner-overlay"><div class="spinner"></div></div>';
+    }
+
+    function setBtnLoading(btn, loading, originalText) {
+      if (loading) {
+        btn.disabled = true;
+        btn.dataset.origText = btn.innerHTML;
+        btn.innerHTML = '&#8987; Saving...';
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.origText || originalText || 'Save';
+      }
+    }
+
+    // ---- Sidebar Navigation ----
+    const sidebarBtns = document.querySelectorAll('.sidebar nav button');
+    sidebarBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        sidebarBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+
+        // Load data for the tab
+        if (tab === 'gallery') loadGalleryImages();
+        if (tab === 'home') loadHomeContent();
+        if (tab === 'about') loadAboutContent();
+
+        // Close mobile sidebar
+        closeSidebar();
+      });
+    });
+
+    // ---- Mobile Sidebar ----
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.add('open');
+      document.getElementById('sidebarOverlay').classList.add('visible');
+    });
+
+    document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
+
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('visible');
+    }
+
+    // ===================================================================
+    //  GALLERY TAB
+    // ===================================================================
+    const categoryBtns = document.querySelectorAll('.category-btn');
+    categoryBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        categoryBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategory = btn.dataset.category;
+        loadGalleryImages();
+      });
+    });
+
+    async function loadGalleryImages() {
+      const grid = document.getElementById('galleryGrid');
+      showSpinner(grid);
+
+      try {
+        const [images, gallery] = await Promise.all([
+          apiGet({ action: 'list-images', category: currentCategory }),
+          apiGet({ action: 'get-gallery' }).catch(() => ({ items: [] }))
+        ]);
+
+        // Build gallery lookup
+        const galleryPaths = new Set((gallery.items || gallery || []).map(i => typeof i === 'string' ? i : i.path));
+
+        grid.innerHTML = '';
+        if (!images || images.length === 0) {
+          grid.innerHTML = '<p style="color:#999;padding:20px;">No images found in this category.</p>';
+          return;
+        }
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'image-grid';
+
+        images.forEach(img => {
+          const thumbUrl = img.thumbUrl || `img/thumbs/${currentCategory}/${img.name}`;
+          const fullPath = img.path || `img/thumbs/${currentCategory}/${img.name}`;
+          const inGallery = galleryPaths.has(fullPath) || galleryPaths.has(img.name);
+
+          const card = document.createElement('div');
+          card.className = 'image-card';
+          card.innerHTML = `
+            <div class="thumb-wrap">
+              <img src="/${thumbUrl}" alt="${img.name}" loading="lazy">
+            </div>
+            <div class="card-body">
+              <div class="filename" title="${img.name}">${img.name}</div>
+              <div class="card-actions">
+                <button class="rotate-btn" data-path="${fullPath}" data-degrees="-90" title="Rotate left">&#8634; 90&deg;</button>
+                <button class="rotate-btn" data-path="${fullPath}" data-degrees="90" title="Rotate right">&#8635; 90&deg;</button>
+                <label class="gallery-toggle">
+                  <input type="checkbox" data-path="${fullPath}" ${inGallery ? 'checked' : ''}> In Gallery
+                </label>
+              </div>
+            </div>
+          `;
+          gridEl.appendChild(card);
+        });
+
+        grid.appendChild(gridEl);
+
+        // Attach rotation handlers
+        grid.querySelectorAll('.rotate-btn').forEach(btn => {
+          btn.addEventListener('click', () => rotateImage(btn));
+        });
+
+      } catch (err) {
+        grid.innerHTML = `<p style="color:#c0392b;padding:20px;">Failed to load images: ${err.message}</p>`;
+        showToast('Failed to load images', 'error');
+      }
+    }
+
+    async function rotateImage(btn) {
+      const path = btn.dataset.path;
+      const degrees = parseInt(btn.dataset.degrees, 10);
+      const card = btn.closest('.image-card');
+      const imgEl = card.querySelector('.thumb-wrap img');
+
+      // Disable both rotate buttons in this card
+      card.querySelectorAll('.rotate-btn').forEach(b => b.disabled = true);
+
+      try {
+        // Load image into canvas and rotate
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.src = imgEl.src;
+
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = reject;
+        });
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const absDeg = Math.abs(degrees);
+
+        if (absDeg === 90 || absDeg === 270) {
+          canvas.width = image.height;
+          canvas.height = image.width;
+        } else {
+          canvas.width = image.width;
+          canvas.height = image.height;
+        }
+
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+        const reader = new FileReader();
+        const base64 = await new Promise(resolve => {
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(blob);
+        });
+
+        // Extract category and filename from path like "img/thumbs/wedding/wedding_1.webp"
+        const pathParts = path.split('/');
+        const filename = pathParts[pathParts.length - 1];
+        const dirName = pathParts[pathParts.length - 2];
+        // Map dir name to category: pre_wedding -> pre-wedding
+        const categoryMap = { wedding: 'wedding', pre_wedding: 'pre-wedding', sagan: 'sagan' };
+        const category = categoryMap[dirName] || dirName;
+
+        await apiPost({
+          action: 'rotate-image',
+          category: category,
+          filename: filename,
+          thumbData: base64
+        });
+
+        // Cache bust
+        imgEl.src = imgEl.src.split('?')[0] + '?t=' + Date.now();
+        showToast('Image rotated successfully');
+
+      } catch (err) {
+        showToast('Failed to rotate image: ' + err.message, 'error');
+      } finally {
+        card.querySelectorAll('.rotate-btn').forEach(b => b.disabled = false);
+      }
+    }
+
+    // Save Gallery
+    document.getElementById('btnSaveGallery').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveGallery');
+      setBtnLoading(btn, true);
+
+      try {
+        const checked = document.querySelectorAll('#galleryGrid .gallery-toggle input:checked');
+        const items = Array.from(checked).map(cb => cb.dataset.path);
+
+        await apiPost({ action: 'update-gallery', items });
+        showToast('Gallery updated successfully');
+      } catch (err) {
+        showToast('Failed to save gallery: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  UPLOAD
+    // ===================================================================
+    document.getElementById('btnUpload').addEventListener('click', () => {
+      uploadFiles = [];
+      document.getElementById('uploadPreview').innerHTML = '';
+      document.getElementById('btnConfirmUpload').disabled = true;
+      document.getElementById('uploadModal').classList.add('visible');
+    });
+
+    document.getElementById('btnCancelUpload').addEventListener('click', () => {
+      document.getElementById('uploadModal').classList.remove('visible');
+    });
+
+    document.getElementById('uploadModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        document.getElementById('uploadModal').classList.remove('visible');
+      }
+    });
+
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => {
+      handleFiles(fileInput.files);
+    });
+
+    function handleFiles(files) {
+      const preview = document.getElementById('uploadPreview');
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        uploadFiles.push(file);
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = `&#128444; ${file.name} <span style="margin-left:auto;color:#999;font-size:11px;">${(file.size / 1024).toFixed(1)} KB</span>`;
+        preview.appendChild(item);
+      }
+      document.getElementById('btnConfirmUpload').disabled = uploadFiles.length === 0;
+    }
+
+    document.getElementById('btnConfirmUpload').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmUpload');
+      setBtnLoading(btn, true);
+
+      try {
+        for (const file of uploadFiles) {
+          const reader = new FileReader();
+          const base64 = await new Promise((resolve, reject) => {
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          await apiPost({
+            action: 'upload-image',
+            category: currentCategory,
+            filename: file.name,
+            imageData: base64,
+            contentType: file.type
+          });
+        }
+
+        showToast(`${uploadFiles.length} image(s) uploaded successfully`);
+        document.getElementById('uploadModal').classList.remove('visible');
+        uploadFiles = [];
+        loadGalleryImages();
+
+      } catch (err) {
+        showToast('Upload failed: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  HOME PAGE TAB
+    // ===================================================================
+    async function loadHomeContent() {
+      const slidesEditor = document.getElementById('heroSlidesEditor');
+      const cardsEditor = document.getElementById('serviceCardsEditor');
+      const portfolioGrid = document.getElementById('portfolioGrid');
+
+      showSpinner(slidesEditor);
+      cardsEditor.innerHTML = '';
+      portfolioGrid.innerHTML = '';
+
+      try {
+        const [content, images] = await Promise.all([
+          apiGet({ action: 'get-content', page: 'home' }),
+          apiGet({ action: 'list-images', category: 'wedding' }).catch(() => [])
+        ]);
+
+        homeContent = content;
+
+        // Hero Slides
+        const slides = content.heroSlides || [
+          { heading: '', text: '' },
+          { heading: '', text: '' }
+        ];
+
+        slidesEditor.innerHTML = '';
+        slides.forEach((slide, i) => {
+          slidesEditor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Slide ${i + 1}</h4>
+              <div class="form-group">
+                <label>Heading (h2)</label>
+                <input type="text" class="slide-heading" data-index="${i}" value="${escapeAttr(slide.heading || '')}">
+              </div>
+              <div class="form-group">
+                <label>Subtitle (p)</label>
+                <input type="text" class="slide-text" data-index="${i}" value="${escapeAttr(slide.text || '')}">
+              </div>
+            </div>
+          `;
+        });
+
+        // Service Cards
+        const services = content.services || [
+          { title: '', description: '' },
+          { title: '', description: '' },
+          { title: '', description: '' },
+          { title: '', description: '' }
+        ];
+
+        cardsEditor.innerHTML = '';
+        services.forEach((svc, i) => {
+          cardsEditor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <h4 style="font-size:13px;color:#999;margin-bottom:10px;">Card ${i + 1}</h4>
+              <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="svc-title" data-index="${i}" value="${escapeAttr(svc.title || '')}">
+              </div>
+              <div class="form-group">
+                <label>Description</label>
+                <textarea class="svc-desc" data-index="${i}" rows="3">${escapeHTML(svc.description || '')}</textarea>
+              </div>
+            </div>
+          `;
+        });
+
+        // Portfolio image selector
+        selectedPortfolio = content.portfolioImages || [];
+        await renderPortfolioSelector();
+
+      } catch (err) {
+        slidesEditor.innerHTML = `<p style="color:#c0392b;">Failed to load: ${err.message}</p>`;
+        showToast('Failed to load home page content', 'error');
+      }
+    }
+
+    async function renderPortfolioSelector() {
+      const grid = document.getElementById('portfolioGrid');
+      grid.innerHTML = '';
+
+      try {
+        // Load images from all categories
+        const categories = ['wedding', 'sagan', 'pre_wedding'];
+        const allImages = [];
+
+        const results = await Promise.all(
+          categories.map(cat =>
+            apiGet({ action: 'list-images', category: cat })
+              .then(imgs => imgs.map(img => ({
+                ...img,
+                category: cat,
+                thumbUrl: img.thumbUrl || `img/thumbs/${cat}/${img.name}`,
+                fullPath: img.path || `img/thumbs/${cat}/${img.name}`
+              })))
+              .catch(() => [])
+          )
+        );
+
+        results.forEach(imgs => allImages.push(...imgs));
+
+        const selectedSet = new Set(selectedPortfolio);
+
+        allImages.forEach(img => {
+          const item = document.createElement('div');
+          item.className = `port-item${selectedSet.has(img.fullPath) ? ' selected' : ''}`;
+          item.dataset.path = img.fullPath;
+          item.innerHTML = `
+            <img src="/${img.thumbUrl}" alt="${img.name}" loading="lazy">
+            <div class="check-badge">&#10003;</div>
+          `;
+          item.addEventListener('click', () => {
+            togglePortfolioItem(item, img.fullPath);
+          });
+          grid.appendChild(item);
+        });
+
+        updatePortfolioCount();
+
+      } catch (err) {
+        grid.innerHTML = '<p style="color:#c0392b;">Failed to load images</p>';
+      }
+    }
+
+    function togglePortfolioItem(el, path) {
+      const idx = selectedPortfolio.indexOf(path);
+      if (idx > -1) {
+        selectedPortfolio.splice(idx, 1);
+        el.classList.remove('selected');
+      } else {
+        if (selectedPortfolio.length >= 9) {
+          showToast('Maximum 9 images allowed for portfolio', 'info');
+          return;
+        }
+        selectedPortfolio.push(path);
+        el.classList.add('selected');
+      }
+      updatePortfolioCount();
+    }
+
+    function updatePortfolioCount() {
+      document.getElementById('portfolioCount').textContent =
+        `${selectedPortfolio.length} of 9 images selected for the homepage portfolio grid.`;
+    }
+
+    // Save Home Page
+    document.getElementById('btnSaveHome').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveHome');
+      setBtnLoading(btn, true);
+
+      try {
+        const heroSlides = [];
+        document.querySelectorAll('.slide-heading').forEach((input, i) => {
+          heroSlides.push({
+            heading: input.value,
+            text: document.querySelector(`.slide-text[data-index="${i}"]`).value
+          });
+        });
+
+        const services = [];
+        document.querySelectorAll('.svc-title').forEach((input, i) => {
+          services.push({
+            title: input.value,
+            description: document.querySelector(`.svc-desc[data-index="${i}"]`).value
+          });
+        });
+
+        await apiPost({
+          action: 'update-content',
+          page: 'home',
+          content: {
+            heroSlides,
+            services,
+            portfolioImages: selectedPortfolio
+          }
+        });
+
+        showToast('Home page content saved');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  ABOUT TAB
+    // ===================================================================
+    const defaultFeatures = [
+      { title: 'Professionalism', description: '' },
+      { title: 'Individual Approach', description: '' },
+      { title: 'Flexible Schedule', description: '' },
+      { title: 'Experience', description: '' }
+    ];
+
+    async function loadAboutContent() {
+      const featEditor = document.getElementById('aboutFeaturesEditor');
+      showSpinner(featEditor);
+
+      try {
+        const content = await apiGet({ action: 'get-content', page: 'about' });
+        aboutContent = content;
+
+        document.getElementById('aboutTitle').value = content.title || '';
+        document.getElementById('aboutDesc').value = content.description || '';
+
+        const features = content.features || defaultFeatures;
+
+        featEditor.innerHTML = '';
+        features.forEach((feat, i) => {
+          featEditor.innerHTML += `
+            <div style="padding:14px 0;${i > 0 ? 'border-top:1px solid #eee;' : ''}">
+              <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="feat-title" data-index="${i}" value="${escapeAttr(feat.title || '')}">
+              </div>
+              <div class="form-group">
+                <label>Description</label>
+                <textarea class="feat-desc" data-index="${i}" rows="2">${escapeHTML(feat.description || '')}</textarea>
+              </div>
+            </div>
+          `;
+        });
+
+      } catch (err) {
+        featEditor.innerHTML = `<p style="color:#c0392b;">Failed to load: ${err.message}</p>`;
+        showToast('Failed to load about page content', 'error');
+      }
+    }
+
+    // Save About Page
+    document.getElementById('btnSaveAbout').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSaveAbout');
+      setBtnLoading(btn, true);
+
+      try {
+        const features = [];
+        document.querySelectorAll('.feat-title').forEach((input, i) => {
+          features.push({
+            title: input.value,
+            description: document.querySelector(`.feat-desc[data-index="${i}"]`).value
+          });
+        });
+
+        await apiPost({
+          action: 'update-content',
+          page: 'about',
+          content: {
+            title: document.getElementById('aboutTitle').value,
+            description: document.getElementById('aboutDesc').value,
+            features
+          }
+        });
+
+        showToast('About page content saved');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    // ===================================================================
+    //  UTILITIES
+    // ===================================================================
+    function escapeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+      return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  </script>
+</body>
+</html>

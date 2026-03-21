@@ -2154,6 +2154,9 @@ ol {
 .map iframe {
   width: 100%;
 }
+.contact-section.spad {
+  padding-top: 40px;
+}
 
 .contact-text h3 {
   color: #111111;
